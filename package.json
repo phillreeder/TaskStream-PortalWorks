@@ -1,0 +1,25 @@
+{
+  "name": "taskstream",
+  "version": "0.0.1",
+  "description": "Deterministic, observable, and auditable browser and document automation workflows.",
+  "license": "UNLICENSED",
+  "author": "Phillip Reeder",
+  "type": "module",
+  "module": "NodeNext",
+  "directories": {},
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.4.2",
+    "prisma": "^7.4.2"
+  }
+}

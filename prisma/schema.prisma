@@ -1,0 +1,220 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// Prisma schema for Managed Browser Automation platform
+// Mirrors initial SQL schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id           String  @id @default(uuid())
+  name         String
+  contactEmail String?
+
+  lifecycleState String?
+
+  billingPlan   String?
+  billingStatus String?
+
+  planIterationLimit Int?
+  planRunLimit       Int?
+
+  companyConfigJson Json?
+
+  createdAt DateTime @default(now())
+
+  workflows   Workflow[]
+  credentials Credential[]
+}
+
+model Workflow {
+  id String @id @default(uuid())
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  name String
+
+  status String @default("enabled")
+
+  schedulePreference String?
+
+  validityState String?
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+  lastRunAt DateTime?
+
+  configVersions WorkflowConfigVersion[]
+  runs           Run[]
+  credentials    Credential[]
+}
+
+model WorkflowConfigVersion {
+  id String @id @default(uuid())
+
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  version  Int
+  isActive Boolean @default(true)
+
+  maxConcurrency Int?
+  retryLimit     Int?
+  scheduleSlot   String?
+  artifactPolicy String?
+
+  configJson Json?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  runs Run[]
+
+  @@index([workflowId])
+}
+
+model Run {
+  id String @id @default(uuid())
+
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  workflowConfigVersionId String?
+  workflowConfigVersion   WorkflowConfigVersion? @relation(fields: [workflowConfigVersionId], references: [id])
+
+  state String
+
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  executionMetadataJson Json?
+
+  createdAt DateTime @default(now())
+
+  items Item[]
+  logs  Log[]
+
+  @@index([workflowId])
+}
+
+model Item {
+  id String @id @default(uuid())
+
+  runId String
+  run   Run    @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  inputData Json?
+
+  state String @default("pending")
+
+  retryCount Int @default(0)
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  steps       Step[]
+  logs        Log[]
+  credentials Credential[]
+
+  @@index([runId])
+}
+
+model Step {
+  id String @id @default(uuid())
+
+  itemId String
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  stepName String
+  stepType String
+
+  state String
+
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  durationMs Int?
+
+  errorMessage String?
+
+  metadataJson Json?
+
+  createdAt DateTime @default(now())
+
+  artifacts Artifact[]
+
+  @@index([itemId])
+}
+
+model Artifact {
+  id String @id @default(uuid())
+
+  stepId String?
+  step   Step?   @relation(fields: [stepId], references: [id], onDelete: SetNull)
+
+  artifactType String?
+
+  storagePath String
+
+  metadataJson Json?
+
+  createdAt DateTime @default(now())
+}
+
+model Log {
+  id String @id @default(uuid())
+
+  runId String?
+  run   Run?    @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  itemId String?
+  item   Item?   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  level String?
+
+  message String
+
+  metadataJson Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+}
+
+model Credential {
+  id String @id @default(uuid())
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  workflowId String?
+  workflow   Workflow? @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  itemId String?
+  item   Item?   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  credentialType String?
+
+  encryptedValue String
+
+  metadataJson Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+  @@index([workflowId])
+  @@index([itemId])
+}
