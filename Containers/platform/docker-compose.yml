@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  portalworks:
+    image: node:20-bullseye
+    container_name: portalworks-app
+    working_dir: /app
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORTALWORKS_PORT:-4000}
+    volumes:
+      - ../../:/app
+      - portalworks-node-modules:/app/node_modules
+    command: >
+      sh -c "npm install && npx prisma migrate deploy && npm run dev"
+    ports:
+      - "${PORTALWORKS_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - portalworks-net
+
+  postgres:
+    extends:
+      file: ../postgres/docker-compose.yml
+      service: postgres
+
+volumes:
+  portalworks-node-modules:
+
+networks:
+  portalworks-net:
+    name: portalworks-net

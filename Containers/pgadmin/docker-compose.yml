@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  pgadmin:
+    image: dpage/pgadmin4:8.6
+    container_name: portalworks-pgadmin
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_LISTEN_PORT: ${PGADMIN_PORT:-5050}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - ../volumes/pgadmin:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_started
+    networks:
+      - portalworks-net
+
+  postgres:
+    extends:
+      file: ../postgres/docker-compose.yml
+      service: postgres
+
+networks:
+  portalworks-net:
+    name: portalworks-net
