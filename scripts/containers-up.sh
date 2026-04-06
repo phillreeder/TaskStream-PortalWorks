@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 TARGET="${1:-platform}"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="$PROJECT_ROOT/Containers/.env"
+ENV_ARGS=()
+if [[ -f "$ENV_FILE" ]]; then
+  ENV_ARGS=(--env-file "$ENV_FILE")
+fi
 
 case "$TARGET" in
   postgres)
@@ -24,4 +28,4 @@ case "$TARGET" in
 esac
 
 echo "Starting $LABEL containers..."
-docker compose -f "$COMPOSE_FILE" up -d
+docker compose "${ENV_ARGS[@]}" -f "$COMPOSE_FILE" up -d

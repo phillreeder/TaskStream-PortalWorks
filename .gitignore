@@ -13,3 +13,4 @@ allure-report
 coverage
 
 src/tenants/**
+Containers/volumes/logs/**
