@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import { allureReporter } from './tests/reporters/allureReporter';
 
-const coverageDir = process.env.VITEST_COVERAGE_DIR ?? 'tmp/coverage';
+const coverageDir = process.env.VITEST_COVERAGE_DIR ?? 'coverage';
 
 export default defineConfig({
   test: {

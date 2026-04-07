@@ -2,7 +2,7 @@ import { defineConfig } from 'allure';
 
 export default defineConfig({
   name: 'TaskStream Allure Suite',
-  output: './tmp/allure-report',
+  output: './allure-report',
   plugins: {
     awesome: {
       options: {

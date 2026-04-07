@@ -23,14 +23,24 @@ WORKSPACE_FLAGS=(--workspaces --include-workspace-root)
 TEST_PREP_VERSION="${TEST_PREP_VERSION:-2}"
 MARKER_DIR="$LOG_ROOT/meta"
 MARKER_FILE="$MARKER_DIR/platform-test.version"
-ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-./tmp/allure-results}"
-ALLURE_REPORT_DIR="${ALLURE_REPORT_DIR:-./tmp/allure-report}"
+ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-./allure-results}"
+ALLURE_REPORT_DIR="${ALLURE_REPORT_DIR:-./allure-report}"
 ALLURE_WATCH_LOG="$LOG_ROOT/allure-watch.log"
+HTTP_SERVER_LOG="$LOG_ROOT/http-server.log"
+ALLURE_WATCH_PORT_EFFECTIVE="custom"
 if [[ -n "${ALLURE_WATCH_EXTRA_ARGS:-}" ]]; then
   # shellcheck disable=SC2206
   ALLURE_WATCH_ARGS=(${ALLURE_WATCH_EXTRA_ARGS})
 else
-  ALLURE_WATCH_ARGS=(--port "${REPORT_PORT}")
+  if [[ -n "${ALLURE_WATCH_PORT:-}" ]]; then
+    WATCH_PORT="${ALLURE_WATCH_PORT}"
+  elif [[ "${REPORT_PORT}" =~ ^[0-9]+$ ]]; then
+    WATCH_PORT=$((REPORT_PORT + 1))
+  else
+    WATCH_PORT=0
+  fi
+  ALLURE_WATCH_PORT_EFFECTIVE="${WATCH_PORT}"
+  ALLURE_WATCH_ARGS=(--port "${WATCH_PORT}")
 fi
 mkdir -p "$MARKER_DIR"
 mkdir -p "$ALLURE_RESULTS_DIR" "$ALLURE_REPORT_DIR"
@@ -96,6 +106,9 @@ cleanup() {
   if [[ -n "${ALLURE_WATCH_PID:-}" ]]; then
     kill "$ALLURE_WATCH_PID" 2>/dev/null || true
   fi
+  if [[ -n "${HTTP_SERVER_PID:-}" ]]; then
+    kill "$HTTP_SERVER_PID" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 
@@ -109,7 +122,19 @@ else
 fi
 
 if command -v npx >/dev/null 2>&1; then
-  log "Starting Allure 3 watch server on port ${REPORT_PORT} (results dir: ${ALLURE_RESULTS_DIR})."
+  log "Starting static artifact server on port ${REPORT_PORT} (serving repo root)."
+  if npx http-server . -p "${REPORT_PORT}" -c-1 --cors >"$HTTP_SERVER_LOG" 2>&1 & then
+    HTTP_SERVER_PID=$!
+    log "Static server pid ${HTTP_SERVER_PID}. Logs at $HTTP_SERVER_LOG."
+  else
+    log "Failed to start static server (see $HTTP_SERVER_LOG)."
+  fi
+else
+  log "http-server CLI unavailable. Coverage HTML won't be hosted."
+fi
+
+if command -v npx >/dev/null 2>&1; then
+  log "Starting Allure 3 watch server on port ${ALLURE_WATCH_PORT_EFFECTIVE} (results dir: ${ALLURE_RESULTS_DIR})."
   if npx allure watch "$ALLURE_RESULTS_DIR" "${ALLURE_WATCH_ARGS[@]}" >"$ALLURE_WATCH_LOG" 2>&1 & then
     ALLURE_WATCH_PID=$!
     log "Allure watch server pid ${ALLURE_WATCH_PID}. Logs at $ALLURE_WATCH_LOG."
@@ -121,8 +146,8 @@ else
 fi
 
 log "Reports available at:"
-log "- http://localhost:${REPORT_PORT}/ (proxied by Allure watch server)"
-log "- Coverage HTML remains at ./coverage/"
+log "- Allure UI: http://localhost:${REPORT_PORT}/allure-report/"
+log "- Coverage HTML: http://localhost:${REPORT_PORT}/coverage/"
 log "Dropping into interactive shell. Watch loop will re-run npm test:setup + test:allure on source changes."
 
 exec bash -l

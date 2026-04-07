@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import type { File, Reporter, Task } from 'vitest/reporters';
@@ -128,7 +128,8 @@ export interface AllureReporterOptions {
   resultsDir?: string;
 }
 
-const DEFAULT_RESULTS_DIR = 'tmp/allure-results';
+const DEFAULT_RESULTS_DIR = 'allure-results';
+const DEFAULT_COVERAGE_SUMMARY = 'coverage/coverage-summary.json';
 
 const resolveResultsPath = (dir: string) => (isAbsolute(dir) ? dir : join(process.cwd(), dir));
 
@@ -136,6 +137,67 @@ export function allureReporter(options?: AllureReporterOptions): Reporter {
   const resolvedDir = process.env.ALLURE_RESULTS_DIR ?? options?.resultsDir ?? DEFAULT_RESULTS_DIR;
   const resultsDir = resolveResultsPath(resolvedDir);
   let writableDir = resultsDir;
+  let coverageEmitted = false;
+
+  const emitCoverageSummary = () => {
+    if (coverageEmitted) {
+      return;
+    }
+    const summaryPath =
+      process.env.VITEST_COVERAGE_SUMMARY_PATH ?? process.env.VITEST_COVERAGE_SUMMARY ?? DEFAULT_COVERAGE_SUMMARY;
+    const resolvedSummary = isAbsolute(summaryPath) ? summaryPath : join(process.cwd(), summaryPath);
+    if (!existsSync(resolvedSummary)) {
+      return;
+    }
+
+    const attachmentUuid = randomUUID();
+    const attachmentFile = `${attachmentUuid}-attachment.json`;
+    writeFileSync(join(writableDir, attachmentFile), readFileSync(resolvedSummary));
+
+    const now = Date.now();
+    const testUuid = randomUUID();
+    const containerUuid = randomUUID();
+    const historyId = makeHistoryId('coverage-summary');
+    const resultPayload: Record<string, unknown> = {
+      uuid: testUuid,
+      historyId,
+      name: 'Coverage Summary',
+      fullName: 'coverage/coverage-summary.json',
+      status: 'passed',
+      stage: 'finished',
+      steps: [],
+      attachments: [
+        {
+          name: 'coverage-summary.json',
+          source: attachmentFile,
+          type: 'application/json',
+        },
+      ],
+      parameters: [],
+      labels: [
+        { name: 'language', value: 'TypeScript' },
+        { name: 'framework', value: 'vitest' },
+        { name: 'suite', value: 'Coverage' },
+        { name: 'package', value: 'coverage' },
+      ],
+      start: now,
+      stop: now,
+    };
+
+    const containerPayload = {
+      uuid: containerUuid,
+      name: 'Coverage',
+      children: [testUuid],
+      befores: [],
+      afters: [],
+      start: now,
+      stop: now,
+    };
+
+    writeFileSync(join(writableDir, `${testUuid}-result.json`), JSON.stringify(resultPayload, null, 2));
+    writeFileSync(join(writableDir, `${containerUuid}-container.json`), JSON.stringify(containerPayload, null, 2));
+    coverageEmitted = true;
+  };
 
   return {
     onInit() {
@@ -149,6 +211,7 @@ export function allureReporter(options?: AllureReporterOptions): Reporter {
       for (const file of files) {
         walkTasks(file, file, writableDir);
       }
+      emitCoverageSummary();
     },
   };
 }

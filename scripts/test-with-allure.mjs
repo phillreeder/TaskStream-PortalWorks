@@ -28,9 +28,9 @@ const prepareWritableDir = (target, label) => {
   }
 };
 
-const preferredResultsDir = process.env.ALLURE_RESULTS_DIR ?? 'tmp/allure-results';
-const preferredReportDir = process.env.ALLURE_REPORT_DIR ?? 'tmp/allure-report';
-const preferredCoverageDir = process.env.VITEST_COVERAGE_DIR ?? 'tmp/coverage';
+const preferredResultsDir = process.env.ALLURE_RESULTS_DIR ?? 'allure-results';
+const preferredReportDir = process.env.ALLURE_REPORT_DIR ?? 'allure-report';
+const preferredCoverageDir = process.env.VITEST_COVERAGE_DIR ?? 'coverage';
 const resolvedResultsDir = prepareWritableDir(preferredResultsDir, 'allure-results');
 const resolvedReportDir = prepareWritableDir(preferredReportDir, 'allure-report');
 const resolvedCoverageDir = prepareWritableDir(preferredCoverageDir, 'coverage');
