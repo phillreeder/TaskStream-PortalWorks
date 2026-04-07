@@ -21,11 +21,43 @@ const baseStreamState: StreamState = {
 
 const stateDefinition: StateDefinition = {
   name: 'sample-state-definition',
-  evaluate: async ({ changes }) => {
-    const hasTokenChange = changes.changes.some((change) => change.type === 'set' && change.path === 'session.token');
-    return hasTokenChange
-      ? { valid: true, errors: [] }
-      : { valid: false, errors: ['session.token must be set during execution'] };
+  schema: {
+    properties: {
+      session: {
+        type: 'object',
+        required: true,
+        properties: {
+          token: { type: 'string', nullable: true },
+        },
+      },
+    },
+    allowAdditionalProperties: false,
+  },
+  invariants: [
+    {
+      id: 'session.token.required',
+      phases: ['post'],
+      validate: ({ state }) => {
+        const session = (state.session ?? {}) as Record<string, unknown>;
+        return typeof session.token === 'string' && session.token.length > 0
+          ? { valid: true }
+          : {
+              valid: false,
+              path: 'session.token',
+              message: 'session.token must be set during execution',
+            };
+      },
+    },
+  ],
+  stos: {
+    'sto.login': {
+      stoKey: 'sto.login',
+      when: (state) => {
+        const session = (state.session ?? {}) as Record<string, unknown>;
+        return !session.token;
+      },
+      errorMessage: 'Login STO can only execute when no session token exists',
+    },
   },
 };
 
@@ -50,6 +82,9 @@ const tenantProcess: TenantProcessDefinition = {
   flows: { [flow.key]: flow },
   stos: { [sto.key]: sto },
   stateDefinition,
+  validators: {},
+  mappers: {},
+  selectors: {},
 };
 
 export const createRunRecord = (overrides: Partial<RunRecord> = {}): RunRecord => ({

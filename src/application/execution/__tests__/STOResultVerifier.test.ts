@@ -17,6 +17,8 @@ describe('STOResultVerifier', () => {
     const result = await verifier.verify({ snapshot, changes: changeBatch });
 
     expect(result.valid).toBe(true);
+    expect(result.changes).toBeDefined();
+    expect(result.changes?.[0]).toMatchObject({ key: 'session.token', value: 'abc123' });
   });
 
   it('rejects executions that produced no changes', async () => {
@@ -25,6 +27,39 @@ describe('STOResultVerifier', () => {
 
     await expect(
       verifier.verify({ snapshot, changes: { ...changeBatch, changes: [] } }),
+    ).rejects.toBeInstanceOf(StoResultVerificationError);
+  });
+
+  it('rejects executions that violate post-execution validation', async () => {
+    const snapshot = await createFrozenSnapshot();
+    const verifier = new STOResultVerifier();
+
+    await expect(
+      verifier.verify({
+        snapshot,
+        changes: {
+          ...changeBatch,
+          changes: [{ type: 'set', path: 'session.status', value: 'noop' }],
+        },
+      }),
+    ).rejects.toBeInstanceOf(StoResultVerificationError);
+  });
+
+  it('rejects entire batches when any change is invalid', async () => {
+    const snapshot = await createFrozenSnapshot();
+    const verifier = new STOResultVerifier();
+
+    await expect(
+      verifier.verify({
+        snapshot,
+        changes: {
+          ...changeBatch,
+          changes: [
+            ...changeBatch.changes,
+            { type: 'remove', path: 'session.token' },
+          ],
+        },
+      }),
     ).rejects.toBeInstanceOf(StoResultVerificationError);
   });
 });

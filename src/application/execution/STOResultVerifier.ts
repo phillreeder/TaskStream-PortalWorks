@@ -1,5 +1,7 @@
 import type { StateChangeBatch } from '../../domain/contracts/stateWriter.ts';
 import type { ExecutionSnapshot, StateValidationResult } from '../../domain/entities/execution.ts';
+import { validateState } from '../../domain/logic/evaluators/StateDefinitionValidator.ts';
+import { projectStateChanges } from '../../domain/logic/state/applyStateMutations.ts';
 import { StoResultVerificationError } from './errors.js';
 
 export interface StoResultVerifierOptions {
@@ -23,11 +25,12 @@ export class STOResultVerifier {
       throw new StoResultVerificationError('Execution produced no state changes');
     }
 
-    const result = await snapshot.tenantProcess.stateDefinition.evaluate({
-      streamState: snapshot.streamState,
-      changes,
-      sto: snapshot.sto,
-      tenantProcess: snapshot.tenantProcess,
+    const { nextState, appliedChanges } = projectStateChanges(snapshot.streamState.data, changes.changes);
+    const result = validateState(nextState, snapshot.tenantProcess.stateDefinition, {
+      previousState: snapshot.streamState.data,
+      changes: appliedChanges,
+      phase: 'post',
+      stoKey: snapshot.sto.key,
     });
 
     if (!result.valid) {

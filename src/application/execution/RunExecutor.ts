@@ -1,6 +1,7 @@
 import type { ExecutionContext } from '../../domain/contracts/executionContext.ts';
 import type { StateChangeBatch } from '../../domain/contracts/stateWriter.ts';
 import type { ExecutionSnapshot, RunRecord, StateValidationResult } from '../../domain/entities/execution.ts';
+import { validateState } from '../../domain/logic/evaluators/StateDefinitionValidator.ts';
 import type { ActionExecutorInput, ActionExecutorResult } from './ActionExecutor.ts';
 import type { StoVerificationInput } from './STOResultVerifier.ts';
 import { ExecutionGuard } from './ExecutionGuard.js';
@@ -52,7 +53,7 @@ export class RunExecutor {
     const snapshot = await this.loadSnapshot(run);
     const guard = new ExecutionGuard(snapshot);
 
-    this.validate(guard, ctx);
+    this.validate(guard, ctx, snapshot);
 
     const actions = await this.executeFlow(snapshot, ctx);
     const stateChanges = await this.collectStateChanges(ctx);
@@ -78,16 +79,41 @@ export class RunExecutor {
     }
   }
 
-  private validate(guard: ExecutionGuard, ctx: ExecutionContext): void {
+  private validate(guard: ExecutionGuard, ctx: ExecutionContext, snapshot: ExecutionSnapshot): void {
     try {
       guard.ensureSnapshotIntegrity();
       guard.ensureExecutionPhase();
       guard.ensureStateWriterPristine(ctx);
+      this.ensurePreExecutionValidation(snapshot);
     } catch (error) {
       if (error instanceof ExecutionGuardError) {
         throw new RunExecutionError(error.message, 'validate', { cause: error });
       }
       throw error;
+    }
+  }
+
+  private ensurePreExecutionValidation(snapshot: ExecutionSnapshot): void {
+    const result = validateState(snapshot.streamState.data, snapshot.tenantProcess.stateDefinition, {
+      phase: 'pre',
+      stoKey: snapshot.sto.key,
+    });
+
+    if (!result.valid) {
+      const message =
+        result.errors && result.errors.length > 0
+          ? `Stream state failed validation: ${result.errors.join('; ')}`
+          : 'Stream state failed validation';
+      throw new RunExecutionError(message, 'validate');
+    }
+
+    const stoRules = snapshot.tenantProcess.stateDefinition.stos;
+    const rule = stoRules?.[snapshot.sto.key];
+    if (rule && !rule.when(snapshot.streamState.data, snapshot.sto)) {
+      throw new RunExecutionError(
+        rule.errorMessage ?? `STO ${snapshot.sto.key} is not applicable to the current state`,
+        'validate',
+      );
     }
   }
 

@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { RunExecutor } from '../RunExecutor.js';
 import { ActionExecutor } from '../ActionExecutor.js';
 import { STOResultVerifier } from '../STOResultVerifier.js';
-import { createSampleLoader, createTenantProcess, createRunRecord, InMemoryTenantProcessRepository, InMemoryStreamStateRepository, createStreamState } from './fixtures.js';
+import {
+  createSampleLoader,
+  createTenantProcess,
+  createRunRecord,
+  InMemoryTenantProcessRepository,
+  InMemoryStreamStateRepository,
+  createStreamState,
+} from './fixtures.js';
 import { createExecutionContext } from '../../execution/createExecutionContext.js';
 import type { FlowActionDefinition } from '../../../domain/entities/execution.ts';
 import { ExecutionDataLoader } from '../ExecutionDataLoader.js';
@@ -107,5 +114,45 @@ describe('RunExecutor', () => {
     ctx.stateWriter.queue({ type: 'set', path: 'foo', value: 'bar' });
 
     await expect(executor.execute(createRunRecord(), ctx)).rejects.toBeInstanceOf(RunExecutionError);
+  });
+
+  it('rejects runs when stream state fails validation', async () => {
+    const invalidState = createStreamState({ data: {} as Record<string, unknown> });
+    const loader = createSampleLoader({
+      streamStates: new InMemoryStreamStateRepository({ [invalidState.id]: invalidState }),
+    });
+    const executor = new RunExecutor(
+      {
+        loader,
+        actions: new ActionExecutor({ clock: tickClock() }),
+        verifier: new STOResultVerifier({ allowNoChanges: true }),
+      },
+      { clock: tickClock() },
+    );
+    const ctx = await createExecutionContext();
+
+    await expect(
+      executor.execute(createRunRecord({ streamStateId: invalidState.id }), ctx),
+    ).rejects.toBeInstanceOf(RunExecutionError);
+  });
+
+  it('rejects runs when STO is not applicable to the current state', async () => {
+    const blockedState = createStreamState({ data: { session: { token: 'existing-token' } } });
+    const loader = createSampleLoader({
+      streamStates: new InMemoryStreamStateRepository({ [blockedState.id]: blockedState }),
+    });
+    const executor = new RunExecutor(
+      {
+        loader,
+        actions: new ActionExecutor({ clock: tickClock() }),
+        verifier: new STOResultVerifier({ allowNoChanges: true }),
+      },
+      { clock: tickClock() },
+    );
+    const ctx = await createExecutionContext();
+
+    await expect(
+      executor.execute(createRunRecord({ streamStateId: blockedState.id }), ctx),
+    ).rejects.toBeInstanceOf(RunExecutionError);
   });
 });

@@ -55,22 +55,88 @@ export interface FlowDefinition {
   readonly actions: readonly FlowActionDefinition[];
 }
 
-export interface StateValidationInput {
-  readonly streamState: StreamState;
-  readonly changes: StateChangeBatch;
-  readonly sto: StateTransitionOperation;
-  readonly tenantProcess: TenantProcessDefinition;
+export interface StateChange {
+  readonly key: string;
+  readonly value: unknown;
+}
+
+export type ValidationPhase = 'pre' | 'post';
+
+export type StatePropertyType = 'string' | 'number' | 'boolean' | 'object' | 'array';
+
+export type StatePropertyTag = 'immutable' | 'irreversible' | 'monotonic';
+
+export interface StatePropertyDefinition {
+  readonly type: StatePropertyType;
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly nullable?: boolean;
+  readonly enum?: readonly (string | number | boolean)[];
+  readonly tags?: readonly StatePropertyTag[];
+  /**
+   * Paths that must be present when this property is provided. Paths use dot-notation from the root.
+   */
+  readonly dependsOn?: readonly string[];
+  readonly properties?: Record<string, StatePropertyDefinition>;
+  readonly items?: StatePropertyDefinition;
+  readonly allowAdditionalProperties?: boolean;
+}
+
+export interface StateSchema {
+  readonly properties: Record<string, StatePropertyDefinition>;
+  readonly allowAdditionalProperties?: boolean;
+}
+
+export interface StateValidationIssue {
+  readonly path: string;
+  readonly message: string;
+  readonly code: string;
+  readonly severity: 'error' | 'warning';
 }
 
 export interface StateValidationResult {
   readonly valid: boolean;
   readonly errors?: readonly string[];
   readonly warnings?: readonly string[];
+  readonly issues?: readonly StateValidationIssue[];
+  readonly changes?: readonly StateChange[];
+}
+
+export interface StateInvariantContext {
+  readonly state: Record<string, unknown>;
+  readonly previousState?: Record<string, unknown>;
+  readonly changes?: readonly StateChange[];
+  readonly stoKey?: string;
+  readonly phase: ValidationPhase;
+}
+
+export interface StateInvariantResult {
+  readonly valid: boolean;
+  readonly message?: string;
+  readonly path?: string;
+  readonly code?: string;
+  readonly severity?: 'error' | 'warning';
+}
+
+export interface StateInvariant {
+  readonly id: string;
+  readonly description?: string;
+  readonly phases?: readonly ValidationPhase[];
+  readonly validate: (context: StateInvariantContext) => StateInvariantResult;
+}
+
+export interface StoApplicabilityRule {
+  readonly stoKey: string;
+  readonly description?: string;
+  readonly errorMessage?: string;
+  readonly when: (state: Record<string, unknown>, sto: StateTransitionOperation) => boolean;
 }
 
 export interface StateDefinition {
   readonly name: string;
-  evaluate(input: StateValidationInput): Promise<StateValidationResult> | StateValidationResult;
+  readonly schema: StateSchema;
+  readonly invariants?: readonly StateInvariant[];
+  readonly stos?: Record<string, StoApplicabilityRule>;
 }
 
 export interface TenantProcessDefinition {
@@ -80,6 +146,9 @@ export interface TenantProcessDefinition {
   readonly flows: Record<string, FlowDefinition>;
   readonly stos: Record<string, StateTransitionOperation>;
   readonly stateDefinition: StateDefinition;
+  readonly validators: Record<string, unknown>;
+  readonly mappers: Record<string, unknown>;
+  readonly selectors: Record<string, unknown>;
 }
 
 export interface ExecutionSnapshot {
