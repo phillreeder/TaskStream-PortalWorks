@@ -23,7 +23,8 @@ WORKSPACE_FLAGS=(--workspaces --include-workspace-root)
 TEST_PREP_VERSION="${TEST_PREP_VERSION:-2}"
 MARKER_DIR="$LOG_ROOT/meta"
 MARKER_FILE="$MARKER_DIR/platform-test.version"
-ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-./allure-results}"
+ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-./tmp/allure-results}"
+ALLURE_REPORT_DIR="${ALLURE_REPORT_DIR:-./tmp/allure-report}"
 ALLURE_WATCH_LOG="$LOG_ROOT/allure-watch.log"
 if [[ -n "${ALLURE_WATCH_EXTRA_ARGS:-}" ]]; then
   # shellcheck disable=SC2206
@@ -32,6 +33,7 @@ else
   ALLURE_WATCH_ARGS=(--port "${REPORT_PORT}")
 fi
 mkdir -p "$MARKER_DIR"
+mkdir -p "$ALLURE_RESULTS_DIR" "$ALLURE_REPORT_DIR"
 
 SKIP_PREP=0
 STORED_VERSION=""

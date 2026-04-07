@@ -16,3 +16,6 @@ src/tenants/**
 Containers/volumes/logs/**
 allure-results/**
 allure-report/**
+tmp/allure-results/**
+tmp/coverage/**
+tmp/allure-report/**

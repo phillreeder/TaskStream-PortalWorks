@@ -81,6 +81,9 @@ const runCommand = async (command: string, args: string[]) => {
 };
 
 const ensureDatabaseReady = async () => {
+  if (process.env.SKIP_TEST_DB_SETUP === '1') {
+    return;
+  }
   await runCommand('npm', ['run', '--silent', 'test:setup']);
 };
 

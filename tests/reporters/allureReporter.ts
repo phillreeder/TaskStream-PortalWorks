@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import type { File, Reporter, Task } from 'vitest/reporters';
 
 const STATUS_MAP: Record<string, 'passed' | 'failed' | 'skipped' | 'unknown'> = {
@@ -113,8 +113,13 @@ export interface AllureReporterOptions {
   resultsDir?: string;
 }
 
+const DEFAULT_RESULTS_DIR = 'tmp/allure-results';
+
+const resolveResultsPath = (dir: string) => (isAbsolute(dir) ? dir : join(process.cwd(), dir));
+
 export function allureReporter(options?: AllureReporterOptions): Reporter {
-  const resultsDir = join(process.cwd(), options?.resultsDir ?? 'allure-results');
+  const resolvedDir = process.env.ALLURE_RESULTS_DIR ?? options?.resultsDir ?? DEFAULT_RESULTS_DIR;
+  const resultsDir = resolveResultsPath(resolvedDir);
 
   return {
     onInit() {
