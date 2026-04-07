@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import type { File, Reporter, Task } from 'vitest/reporters';
 
@@ -10,10 +11,24 @@ const STATUS_MAP: Record<string, 'passed' | 'failed' | 'skipped' | 'unknown'> = 
   todo: 'skipped',
 };
 
-function ensureResultsDir(resultsDir: string) {
-  rmSync(resultsDir, { recursive: true, force: true });
-  mkdirSync(resultsDir, { recursive: true });
-}
+const fallbackDir = (label: string) => join(tmpdir(), `taskstream-${label}-${randomUUID()}`);
+
+const ensureResultsDir = (dir: string): string => {
+  try {
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EACCES') {
+      const fallback = fallbackDir('allure-results');
+      mkdirSync(fallback, { recursive: true });
+      console.warn(`[allureReporter] Unable to write to ${dir}, using ${fallback} instead.`);
+      process.env.ALLURE_RESULTS_DIR = fallback;
+      return fallback;
+    }
+    throw error;
+  }
+};
 
 function suitePath(task: Task): string[] {
   const segments: string[] = [];
@@ -120,18 +135,19 @@ const resolveResultsPath = (dir: string) => (isAbsolute(dir) ? dir : join(proces
 export function allureReporter(options?: AllureReporterOptions): Reporter {
   const resolvedDir = process.env.ALLURE_RESULTS_DIR ?? options?.resultsDir ?? DEFAULT_RESULTS_DIR;
   const resultsDir = resolveResultsPath(resolvedDir);
+  let writableDir = resultsDir;
 
   return {
     onInit() {
-      ensureResultsDir(resultsDir);
+      writableDir = ensureResultsDir(resultsDir);
       writeFileSync(
-        join(resultsDir, 'environment.properties'),
+        join(writableDir, 'environment.properties'),
         `NODE_ENV=${process.env.NODE_ENV ?? 'test'}\n`,
       );
     },
     async onFinished(files = []) {
       for (const file of files) {
-        walkTasks(file, file, resultsDir);
+        walkTasks(file, file, writableDir);
       }
     },
   };

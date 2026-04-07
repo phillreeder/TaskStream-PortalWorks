@@ -4,6 +4,7 @@ import type { StateChangeBatch } from '../contracts/stateWriter.ts';
 export interface RunRecord {
   readonly id: string;
   readonly streamStateId: string;
+  readonly tenantProcessId: string;
   readonly tenantProcessKey: string;
   readonly tenantProcessVersion: string;
   readonly stoKey: string;

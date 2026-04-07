@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
 import { allureReporter } from './tests/reporters/allureReporter';
 
+const coverageDir = process.env.VITEST_COVERAGE_DIR ?? 'tmp/coverage';
+
 export default defineConfig({
   test: {
     globals: false,
@@ -13,7 +15,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      reportsDirectory: 'tmp/coverage',
+      reportsDirectory: coverageDir,
       cleanOnRerun: true,
       include: ['src/**/*.{ts,tsx}', 'packages/**/*.{ts,tsx}'],
       exclude: [

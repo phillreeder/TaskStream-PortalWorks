@@ -5,6 +5,7 @@ import type { StreamStateRepository, TenantProcessRepository } from '../Executio
 const baseRun: RunRecord = {
   id: 'run-001',
   streamStateId: 'stream-001',
+  tenantProcessId: 'tenant-1',
   tenantProcessKey: 'tenant.alpha',
   tenantProcessVersion: '1.0.0',
   stoKey: 'sto.login',
@@ -77,9 +78,12 @@ export class InMemoryStreamStateRepository implements StreamStateRepository {
 export class InMemoryTenantProcessRepository implements TenantProcessRepository {
   constructor(private readonly records: Record<string, TenantProcessDefinition>) {}
 
-  async getByKey(key: string, version: string): Promise<TenantProcessDefinition | undefined> {
-    const record = Object.values(this.records).find((item) => item.key === key && item.version === version);
-    return record;
+  async getById(id: string, version: string): Promise<TenantProcessDefinition | undefined> {
+    const record = this.records[id];
+    if (record && record.version === version) {
+      return record;
+    }
+    return undefined;
   }
 }
 

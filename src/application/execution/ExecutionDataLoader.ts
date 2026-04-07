@@ -7,7 +7,7 @@ export interface StreamStateRepository {
 }
 
 export interface TenantProcessRepository {
-  getByKey(key: string, version: string): Promise<TenantProcessDefinition | undefined>;
+  getById(id: string, version: string): Promise<TenantProcessDefinition | undefined>;
 }
 
 export interface ExecutionDataLoaderDependencies {
@@ -29,11 +29,17 @@ export class ExecutionDataLoader {
       throw new ExecutionDataLoaderError(`Stream state ${run.streamStateId} was not found`, 'STREAM_STATE_NOT_FOUND');
     }
 
-    const tenantProcess = await this.deps.tenantProcesses.getByKey(run.tenantProcessKey, run.tenantProcessVersion);
+    const tenantProcess = await this.deps.tenantProcesses.getById(run.tenantProcessId, run.tenantProcessVersion);
     if (!tenantProcess) {
       throw new ExecutionDataLoaderError(
-        `Tenant process ${run.tenantProcessKey}@${run.tenantProcessVersion} was not found`,
+        `Tenant process ${run.tenantProcessId}@${run.tenantProcessVersion} was not found`,
         'TENANT_PROCESS_NOT_FOUND',
+      );
+    }
+    if (tenantProcess.key !== run.tenantProcessKey) {
+      throw new ExecutionDataLoaderError(
+        `Run expected tenant process key ${run.tenantProcessKey} but resolved ${tenantProcess.key}`,
+        'TENANT_PROCESS_MISMATCH',
       );
     }
 

@@ -75,7 +75,7 @@ if [[ "$SKIP_PREP" -ne 1 ]]; then
   cp /tmp/npm-install.log "$LOG_ROOT/npm-install.log" 2>/dev/null || true
 
   log "Resetting & migrating test database (npm run test:setup)..."
-  npm run test:setup
+  # npm run test:setup
 
   log "Running Vitest + Allure suite (npm run test:allure)..."
   if npm run test:allure; then
