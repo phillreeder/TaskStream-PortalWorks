@@ -114,7 +114,7 @@ export interface AllureReporterOptions {
 }
 
 export function allureReporter(options?: AllureReporterOptions): Reporter {
-  const resultsDir = join(process.cwd(), options?.resultsDir ?? 'test-results');
+  const resultsDir = join(process.cwd(), options?.resultsDir ?? 'allure-results');
 
   return {
     onInit() {

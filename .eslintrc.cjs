@@ -12,4 +12,22 @@ module.exports = {
   plugins: ['@typescript-eslint'],
   ignorePatterns: ['dist', 'coverage', 'allure-report', 'test-results'],
   rules: {},
+  overrides: [
+    {
+      files: ['src/modules/execution-engine/**/*', 'src/workflows/**/*', 'src/tenants/**/*'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: ['**/infrastructure/**', '../**/infrastructure/**', '../../**/infrastructure/**'],
+                message: 'Execution modules must not import infrastructure adapters directly. Use ExecutionContext injections instead.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
 };
