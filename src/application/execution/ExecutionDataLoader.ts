@@ -1,4 +1,4 @@
-import type { ExecutionSnapshot, RunRecord, StreamState, TenantProcessDefinition } from '../../domain/entities/execution.ts';
+import type { ExecutionSnapshot, RunRecord, StreamState, TenantProcessRuntime } from '../../domain/entities/execution.ts';
 import { deepFreeze } from '../../utils/deepFreeze.js';
 import { ExecutionDataLoaderError } from './errors.js';
 
@@ -7,7 +7,7 @@ export interface StreamStateRepository {
 }
 
 export interface TenantProcessRepository {
-  getById(id: string, version: string): Promise<TenantProcessDefinition | undefined>;
+  getById(id: string, version: string): Promise<TenantProcessRuntime | undefined>;
 }
 
 export interface ExecutionDataLoaderDependencies {
@@ -43,12 +43,12 @@ export class ExecutionDataLoader {
       );
     }
 
-    const sto = tenantProcess.stos[run.stoKey];
+    const sto = tenantProcess.stos.get(run.stoKey);
     if (!sto) {
       throw new ExecutionDataLoaderError(`STO ${run.stoKey} not found in tenant process ${tenantProcess.key}`, 'STO_NOT_FOUND');
     }
 
-    const flow = tenantProcess.flows[sto.flowKey];
+    const flow = tenantProcess.flows.get(sto.flowKey);
     if (!flow) {
       throw new ExecutionDataLoaderError(
         `Flow ${sto.flowKey} referenced by STO ${sto.key} not found`,

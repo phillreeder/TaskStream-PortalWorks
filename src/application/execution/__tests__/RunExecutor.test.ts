@@ -22,22 +22,28 @@ const tickClock = () => {
 
 const buildLoaderWithFlow = (actions: FlowActionDefinition[]) => {
   const tenantProcess = createTenantProcess({
-    flows: {
-      'flow.login': {
-        key: 'flow.login',
-        name: 'Login Flow',
-        actions,
-      },
-    },
-    stos: {
-      'sto.login': {
-        id: 'sto-1',
-        key: 'sto.login',
-        version: '1.0.0',
-        flowKey: 'flow.login',
-        phase: 'execution',
-      },
-    },
+    flows: new Map([
+      [
+        'flow.login',
+        {
+          key: 'flow.login',
+          name: 'Login Flow',
+          actions,
+        },
+      ],
+    ]),
+    stos: new Map([
+      [
+        'sto.login',
+        {
+          id: 'sto-1',
+          key: 'sto.login',
+          version: '1.0.0',
+          flowKey: 'flow.login',
+          phase: 'execution',
+        },
+      ],
+    ]),
   });
 
   return new ExecutionDataLoader({

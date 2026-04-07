@@ -38,7 +38,7 @@ describe('ExecutionDataLoader', () => {
 
   it('throws a descriptive error when STO is missing', async () => {
     const streamState = createStreamState();
-    const tenantProcess = createTenantProcess({ stos: {} });
+    const tenantProcess = createTenantProcess({ stos: new Map() });
     const loader = new ExecutionDataLoader({
       streamStates: new InMemoryStreamStateRepository({ [streamState.id]: streamState }),
       tenantProcesses: new InMemoryTenantProcessRepository({ [tenantProcess.id]: tenantProcess }),
@@ -88,7 +88,7 @@ describe('ExecutionDataLoader', () => {
   it('throws a descriptive error when flow referenced by STO is missing', async () => {
     const streamState = createStreamState();
     const tenantProcess = createTenantProcess({
-      flows: {},
+      flows: new Map(),
     });
     const loader = new ExecutionDataLoader({
       streamStates: new InMemoryStreamStateRepository({ [streamState.id]: streamState }),
@@ -106,6 +106,6 @@ describe('ExecutionDataLoader', () => {
 
     expect(snapshot.sto.key).toBe(run.stoKey);
     expect(snapshot.flow.key).toBe(snapshot.sto.flowKey);
-    expect(snapshot.tenantProcess.stos[run.stoKey]).toBeDefined();
+    expect(snapshot.tenantProcess.stos.get(run.stoKey)).toBeDefined();
   });
 });

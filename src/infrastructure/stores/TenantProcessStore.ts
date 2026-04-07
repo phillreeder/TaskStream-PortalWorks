@@ -1,6 +1,6 @@
 import type { TenantProcessRepository } from '../../application/execution/ExecutionDataLoader.js';
-import type { TenantProcessDefinition } from '../../domain/entities/execution.ts';
-import { deepFreeze } from '../../utils/deepFreeze.js';
+import type { TenantProcessRuntime } from '../../domain/entities/execution.ts';
+import { normalizeTenantProcess } from '../../domain/logic/tenantProcess/normalizeTenantProcess.ts';
 import { tenantProcessManifests, type TenantProcessManifest } from '../storage/tenants/manifests.js';
 
 const compositeKey = (id: string, version: string) => `${id}@${version}`;
@@ -13,7 +13,7 @@ export interface TenantProcessStoreOptions {
 export class TenantProcessStore implements TenantProcessRepository {
   private readonly manifests: Map<string, TenantProcessManifest>;
   private readonly cacheEnabled: boolean;
-  private readonly cache = new Map<string, TenantProcessDefinition>();
+  private readonly cache = new Map<string, TenantProcessRuntime>();
 
   constructor(options: TenantProcessStoreOptions = {}) {
     this.cacheEnabled = options.cache ?? true;
@@ -27,7 +27,7 @@ export class TenantProcessStore implements TenantProcessRepository {
     }
   }
 
-  async getById(id: string, version: string): Promise<TenantProcessDefinition | undefined> {
+  async getById(id: string, version: string): Promise<TenantProcessRuntime | undefined> {
     const key = compositeKey(id, version);
     if (this.cacheEnabled && this.cache.has(key)) {
       return this.cache.get(key);
@@ -45,11 +45,11 @@ export class TenantProcessStore implements TenantProcessRepository {
     return runtime;
   }
 
-  list(): readonly TenantProcessDefinition[] {
+  list(): readonly TenantProcessRuntime[] {
     return Array.from(this.cache.values());
   }
 
-  private async loadFromManifest(manifest: TenantProcessManifest): Promise<TenantProcessDefinition> {
+  private async loadFromManifest(manifest: TenantProcessManifest): Promise<TenantProcessRuntime> {
     const [
       stateDefinition,
       flows,
@@ -66,7 +66,7 @@ export class TenantProcessStore implements TenantProcessRepository {
       TenantProcessStore.importModule(new URL('./selectors.js', manifest.baseUrl).href, 'selectors'),
     ]);
 
-    return deepFreeze({
+    return normalizeTenantProcess({
       id: manifest.id,
       key: manifest.key,
       version: manifest.version,

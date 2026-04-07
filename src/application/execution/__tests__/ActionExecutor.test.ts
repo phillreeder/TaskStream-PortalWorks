@@ -14,22 +14,28 @@ const buildSnapshot = (actions: FlowActionDefinition[]): ExecutionSnapshot => {
   const run = createRunRecord();
   const streamState = createStreamState();
   const tenantProcess = createTenantProcess({
-    flows: {
-      'flow.login': {
-        key: 'flow.login',
-        name: 'Login Flow',
-        actions,
-      },
-    },
-    stos: {
-      'sto.login': {
-        id: 'sto-1',
-        key: 'sto.login',
-        version: '1.0.0',
-        flowKey: 'flow.login',
-        phase: 'execution',
-      },
-    },
+    flows: new Map([
+      [
+        'flow.login',
+        {
+          key: 'flow.login',
+          name: 'Login Flow',
+          actions,
+        },
+      ],
+    ]),
+    stos: new Map([
+      [
+        'sto.login',
+        {
+          id: 'sto-1',
+          key: 'sto.login',
+          version: '1.0.0',
+          flowKey: 'flow.login',
+          phase: 'execution',
+        },
+      ],
+    ]),
     stateDefinition: sampleStateDefinition,
   });
 
@@ -37,8 +43,8 @@ const buildSnapshot = (actions: FlowActionDefinition[]): ExecutionSnapshot => {
     run,
     streamState,
     tenantProcess,
-    sto: tenantProcess.stos['sto.login'],
-    flow: tenantProcess.flows['flow.login'],
+    sto: tenantProcess.stos.get('sto.login')!,
+    flow: tenantProcess.flows.get('flow.login')!,
   };
 };
 

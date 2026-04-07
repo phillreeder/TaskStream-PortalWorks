@@ -9,8 +9,8 @@ describe('TenantProcessStore', () => {
     const runtime = await store.getById(manifest.id, manifest.version);
 
     expect(runtime).toBeDefined();
-    expect(runtime?.flows['flow.taskstream.initialize']).toBeDefined();
-    expect(runtime?.stos['sto.taskstream.initialize']).toBeDefined();
+    expect(runtime?.flows.get('flow.taskstream.initialize')).toBeDefined();
+    expect(runtime?.stos.get('sto.taskstream.initialize')).toBeDefined();
     expect(runtime?.stateDefinition.name).toBe('taskstream.default-state');
     expect(runtime?.validators).toMatchObject({
       onboarding: {

@@ -139,22 +139,34 @@ export interface StateDefinition {
   readonly stos?: Record<string, StoApplicabilityRule>;
 }
 
-export interface TenantProcessDefinition {
+export interface TenantProcessConfig {
   readonly id: string;
   readonly key: string;
   readonly version: string;
-  readonly flows: Record<string, FlowDefinition>;
-  readonly stos: Record<string, StateTransitionOperation>;
+  readonly flows?: Record<string, FlowDefinition>;
+  readonly stos?: Record<string, StateTransitionOperation>;
+  readonly stateDefinition?: StateDefinition;
+  readonly validators?: Record<string, unknown>;
+  readonly mappers?: Record<string, unknown>;
+  readonly selectors?: Record<string, unknown>;
+}
+
+export interface TenantProcessRuntime {
+  readonly id: string;
+  readonly key: string;
+  readonly version: string;
+  readonly flows: ReadonlyMap<string, FlowDefinition>;
+  readonly stos: ReadonlyMap<string, StateTransitionOperation>;
   readonly stateDefinition: StateDefinition;
-  readonly validators: Record<string, unknown>;
-  readonly mappers: Record<string, unknown>;
-  readonly selectors: Record<string, unknown>;
+  readonly validators: Readonly<Record<string, unknown>>;
+  readonly mappers: Readonly<Record<string, unknown>>;
+  readonly selectors: Readonly<Record<string, unknown>>;
 }
 
 export interface ExecutionSnapshot {
   readonly run: RunRecord;
   readonly streamState: StreamState;
-  readonly tenantProcess: TenantProcessDefinition;
+  readonly tenantProcess: TenantProcessRuntime;
   readonly sto: StateTransitionOperation;
   readonly flow: FlowDefinition;
 }

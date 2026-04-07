@@ -1,4 +1,12 @@
-import type { ExecutionSnapshot, FlowDefinition, RunRecord, StateDefinition, StateTransitionOperation, StreamState, TenantProcessDefinition } from '../../../domain/entities/execution.ts';
+import type {
+  ExecutionSnapshot,
+  FlowDefinition,
+  RunRecord,
+  StateDefinition,
+  StateTransitionOperation,
+  StreamState,
+  TenantProcessRuntime,
+} from '../../../domain/entities/execution.ts';
 import { ExecutionDataLoader, type ExecutionDataLoaderDependencies } from '../ExecutionDataLoader.js';
 import type { StreamStateRepository, TenantProcessRepository } from '../ExecutionDataLoader.js';
 
@@ -75,12 +83,12 @@ const sto: StateTransitionOperation = {
   phase: 'execution',
 };
 
-const tenantProcess: TenantProcessDefinition = {
+const tenantProcess: TenantProcessRuntime = {
   id: 'tenant-1',
   key: baseRun.tenantProcessKey,
   version: baseRun.tenantProcessVersion,
-  flows: { [flow.key]: flow },
-  stos: { [sto.key]: sto },
+  flows: new Map([[flow.key, flow]]),
+  stos: new Map([[sto.key, sto]]),
   stateDefinition,
   validators: {},
   mappers: {},
@@ -97,7 +105,7 @@ export const createStreamState = (overrides: Partial<StreamState> = {}): StreamS
   ...overrides,
 });
 
-export const createTenantProcess = (overrides: Partial<TenantProcessDefinition> = {}): TenantProcessDefinition => ({
+export const createTenantProcess = (overrides: Partial<TenantProcessRuntime> = {}): TenantProcessRuntime => ({
   ...tenantProcess,
   ...overrides,
 });
@@ -111,9 +119,9 @@ export class InMemoryStreamStateRepository implements StreamStateRepository {
 }
 
 export class InMemoryTenantProcessRepository implements TenantProcessRepository {
-  constructor(private readonly records: Record<string, TenantProcessDefinition>) {}
+  constructor(private readonly records: Record<string, TenantProcessRuntime>) {}
 
-  async getById(id: string, version: string): Promise<TenantProcessDefinition | undefined> {
+  async getById(id: string, version: string): Promise<TenantProcessRuntime | undefined> {
     const record = this.records[id];
     if (record && record.version === version) {
       return record;

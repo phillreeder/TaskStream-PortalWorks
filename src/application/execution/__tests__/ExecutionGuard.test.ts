@@ -12,8 +12,8 @@ describe('ExecutionGuard', () => {
       run: createRunRecord(),
       streamState: createStreamState(),
       tenantProcess,
-      sto: tenantProcess.stos['sto.login'],
-      flow: tenantProcess.flows['flow.login'],
+      sto: tenantProcess.stos.get('sto.login')!,
+      flow: tenantProcess.flows.get('flow.login')!,
     };
 
     const guard = new ExecutionGuard(snapshot);
@@ -23,22 +23,25 @@ describe('ExecutionGuard', () => {
 
   it('rejects planning STOs during execution', () => {
     const tenantProcess = createTenantProcess({
-      stos: {
-        'sto.login': {
-          id: 'sto-1',
-          key: 'sto.login',
-          version: '1.0.0',
-          flowKey: 'flow.login',
-          phase: 'planning',
-        },
-      },
+      stos: new Map([
+        [
+          'sto.login',
+          {
+            id: 'sto-1',
+            key: 'sto.login',
+            version: '1.0.0',
+            flowKey: 'flow.login',
+            phase: 'planning',
+          },
+        ],
+      ]),
     });
     const snapshot: ExecutionSnapshot = {
       run: createRunRecord(),
       streamState: createStreamState(),
       tenantProcess,
-      sto: tenantProcess.stos['sto.login'],
-      flow: tenantProcess.flows['flow.login'],
+      sto: tenantProcess.stos.get('sto.login')!,
+      flow: tenantProcess.flows.get('flow.login')!,
     };
 
     const guard = new ExecutionGuard(snapshot);
@@ -51,8 +54,8 @@ describe('ExecutionGuard', () => {
       run: createRunRecord(),
       streamState: createStreamState(),
       tenantProcess,
-      sto: tenantProcess.stos['sto.login'],
-      flow: tenantProcess.flows['flow.login'],
+      sto: tenantProcess.stos.get('sto.login')!,
+      flow: tenantProcess.flows.get('flow.login')!,
     };
     const ctx = await createExecutionContext();
     ctx.stateWriter.queue({ type: 'set', path: 'foo', value: 'bar' });
