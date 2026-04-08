@@ -47,7 +47,7 @@ const buildLoaderWithFlow = (actions: FlowActionDefinition[]) => {
   });
 
   return new ExecutionDataLoader({
-    streamStates: new InMemoryStreamStateRepository({ 'stream-001': createStreamState() }),
+    streamStates: new InMemoryStreamStateRepository({ 'state-001': createStreamState() }),
     tenantProcesses: new InMemoryTenantProcessRepository({ [tenantProcess.id]: tenantProcess }),
   });
 };

@@ -8,11 +8,14 @@ import type {
   TenantProcessRuntime,
 } from '../../../domain/entities/execution.ts';
 import { ExecutionDataLoader, type ExecutionDataLoaderDependencies } from '../ExecutionDataLoader.js';
-import type { StreamStateRepository, TenantProcessRepository } from '../ExecutionDataLoader.js';
+import type { StreamStateRepository } from '../../contracts/StreamStateRepository.ts';
+import type { TenantProcessRepository } from '../../contracts/TenantProcessRepository.ts';
 
 const baseRun: RunRecord = {
   id: 'run-001',
-  streamStateId: 'stream-001',
+  streamId: 'stream-123',
+  streamStateId: 'state-001',
+  stateVersion: 1,
   tenantProcessId: 'tenant-1',
   tenantProcessKey: 'tenant.alpha',
   tenantProcessVersion: '1.0.0',
@@ -21,7 +24,11 @@ const baseRun: RunRecord = {
 };
 
 const baseStreamState: StreamState = {
-  id: 'stream-001',
+  id: 'state-001',
+  streamId: 'stream-123',
+  tenantProcessId: 'tenant-1',
+  tenantProcessKey: 'tenant.alpha',
+  tenantProcessVersion: '1.0.0',
   version: 1,
   data: { session: { token: null } },
   updatedAt: '2024-01-01T00:00:00.000Z',
@@ -115,6 +122,14 @@ export class InMemoryStreamStateRepository implements StreamStateRepository {
 
   async getById(id: string): Promise<StreamState | undefined> {
     return this.records[id];
+  }
+
+  async getLatestByStreamId(streamId: string): Promise<StreamState | undefined> {
+    const candidates = Object.values(this.records).filter((record) => record.streamId === streamId);
+    if (candidates.length === 0) {
+      return undefined;
+    }
+    return candidates.reduce((latest, record) => (record.version > latest.version ? record : latest));
   }
 }
 

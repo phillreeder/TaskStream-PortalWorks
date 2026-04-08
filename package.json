@@ -26,6 +26,7 @@
     "db:reset:test": "cross-env-shell DATABASE_URL=$TEST_DATABASE_URL prisma migrate reset --force",
     "test:setup": "npm run db:reset:test && npm run db:migrate:test",
     "test:full": "npm run lint && npm run typecheck && npm run test:allure",
+    "depcruise": "dependency-cruiser --config .dependency-cruiser.cjs src packages",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
@@ -40,15 +41,16 @@
     "@vitest/coverage-v8": "^1.6.0",
     "allure": "^3.0.0-beta.20",
     "cross-env": "^7.0.3",
+    "dependency-cruiser": "^17.3.10",
     "eslint": "^8.57.0",
     "http-server": "^14.1.1",
     "tsx": "^4.21.0",
-    "vitest": "^1.6.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^1.6.0"
   },
   "dependencies": {
-    "@TaskStream/SiteAutomation": "workspace:*",
     "@prisma/client": "^7.4.2",
+    "@TaskStream/SiteAutomation": "workspace:*",
     "prisma": "^7.4.2"
   },
   "workspaces": [

@@ -3,7 +3,9 @@ import type { StateChangeBatch } from '../contracts/stateWriter.ts';
 
 export interface RunRecord {
   readonly id: string;
+  readonly streamId: string;
   readonly streamStateId: string;
+  readonly stateVersion: number;
   readonly tenantProcessId: string;
   readonly tenantProcessKey: string;
   readonly tenantProcessVersion: string;
@@ -12,7 +14,14 @@ export interface RunRecord {
   readonly metadata?: Record<string, unknown>;
 }
 
-export interface StreamState {
+export interface StreamStateBinding {
+  readonly streamId: string;
+  readonly tenantProcessId: string;
+  readonly tenantProcessKey: string;
+  readonly tenantProcessVersion: string;
+}
+
+export interface StreamState extends StreamStateBinding {
   readonly id: string;
   readonly version: number;
   readonly data: Record<string, unknown>;
@@ -29,6 +38,20 @@ export interface StateTransitionOperation {
   readonly phase: StoPhase;
   readonly description?: string;
   readonly metadata?: Record<string, unknown>;
+}
+
+export interface StoSelectionContext {
+  readonly streamState: StreamState;
+  readonly tenantProcess: TenantProcessRuntime;
+  readonly candidates: readonly StateTransitionOperation[];
+}
+
+export type StoSelector = (context: StoSelectionContext) => StateTransitionOperation | undefined;
+
+export interface TenantProcessSelector {
+  readonly name: string;
+  readonly description?: string;
+  readonly select: StoSelector;
 }
 
 export interface FlowActionResult {
@@ -148,7 +171,7 @@ export interface TenantProcessConfig {
   readonly stateDefinition?: StateDefinition;
   readonly validators?: Record<string, unknown>;
   readonly mappers?: Record<string, unknown>;
-  readonly selectors?: Record<string, unknown>;
+  readonly selectors?: Record<string, TenantProcessSelector>;
 }
 
 export interface TenantProcessRuntime {
@@ -160,7 +183,39 @@ export interface TenantProcessRuntime {
   readonly stateDefinition: StateDefinition;
   readonly validators: Readonly<Record<string, unknown>>;
   readonly mappers: Readonly<Record<string, unknown>>;
-  readonly selectors: Readonly<Record<string, unknown>>;
+  readonly selectors: Readonly<Record<string, TenantProcessSelector>>;
+}
+
+export interface StoRejection {
+  readonly sto: StateTransitionOperation;
+  readonly reason: string;
+}
+
+export type PlannerQueueStatus = 'pending' | 'locked' | 'completed' | 'failed' | 'dead_letter';
+
+export interface PlannerQueueRecord {
+  readonly id: string;
+  readonly streamId: string;
+  readonly stoId: string;
+  readonly stoKey: string;
+  readonly stoVersion: string;
+  readonly tenantProcessId: string;
+  readonly tenantProcessVersion: string;
+  readonly runId: string;
+  readonly status: PlannerQueueStatus;
+  readonly createdAt: string;
+  readonly payload?: Record<string, unknown>;
+}
+
+export interface PlannerDecision {
+  readonly streamId: string;
+  readonly streamStateId: string;
+  readonly stateVersion: number;
+  readonly sto: StateTransitionOperation;
+  readonly run: RunRecord;
+  readonly intent?: PlannerQueueRecord;
+  readonly created: boolean;
+  readonly rejected: readonly StoRejection[];
 }
 
 export interface ExecutionSnapshot {

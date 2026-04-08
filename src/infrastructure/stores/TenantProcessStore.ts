@@ -1,4 +1,4 @@
-import type { TenantProcessRepository } from '../../application/execution/ExecutionDataLoader.js';
+import type { TenantProcessRepository } from '../../application/contracts/TenantProcessRepository.ts';
 import type { TenantProcessRuntime } from '../../domain/entities/execution.ts';
 import { normalizeTenantProcess } from '../../domain/logic/tenantProcess/normalizeTenantProcess.ts';
 import { tenantProcessManifests, type TenantProcessManifest } from '../storage/tenants/manifests.js';

@@ -1,14 +1,8 @@
-import type { ExecutionSnapshot, RunRecord, StreamState, TenantProcessRuntime } from '../../domain/entities/execution.ts';
+import type { ExecutionSnapshot, RunRecord } from '../../domain/entities/execution.ts';
 import { deepFreeze } from '../../utils/deepFreeze.js';
+import type { StreamStateRepository } from '../contracts/StreamStateRepository.ts';
+import type { TenantProcessRepository } from '../contracts/TenantProcessRepository.ts';
 import { ExecutionDataLoaderError } from './errors.js';
-
-export interface StreamStateRepository {
-  getById(id: string): Promise<StreamState | undefined>;
-}
-
-export interface TenantProcessRepository {
-  getById(id: string, version: string): Promise<TenantProcessRuntime | undefined>;
-}
 
 export interface ExecutionDataLoaderDependencies {
   streamStates: StreamStateRepository;
