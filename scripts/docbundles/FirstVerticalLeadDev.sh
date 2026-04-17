@@ -24,7 +24,7 @@ INCLUDE_PATHS=(
   "docs/development/TaskLog.md"
   "docs/development/UseCases.md"
   "docs/System/Schemas/DB/PrismaDefinition.md"
-  "docs/System/FinalDocs/**"
+  "docs/System/Architecture/**"
   "docs/AgentProtocol/LeadDev.md"
   "docs/AgentProtocol/TicketFormat.md"
   "docs/AgentProtocol/DevelopmentRoles.md"
