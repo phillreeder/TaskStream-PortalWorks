@@ -11,6 +11,19 @@ export type {
 export { VALIDATED_STATE_DEFINITION } from './brand.js';
 export type { ValidatedStateDefinitionBrand } from './brand.js';
 export type {
+  AppendArrayOperation,
+  ArrayOperation,
+  ArrayOperationForItems,
+  ArrayOperationKind,
+  FieldChangeFromDefinition,
+  PopArrayOperation,
+  RemoveIndexArrayOperation,
+  ReplaceArrayOperation,
+  SetIndexArrayOperation,
+  ShiftArrayOperation,
+  StateChanges,
+} from './changes.js';
+export type {
   ArrayFieldDefinition,
   ArrayItemDefinition,
   BaseFieldDefinition,
