@@ -14,7 +14,7 @@ const ensureReady: FlowActionDefinition = {
   key: 'action.taskstream.ensure-ready',
   description: 'Marks the stream as run-ready',
   async run({ ctx }) {
-    ctx.stateWriter.queue({ type: 'merge', path: 'session.status', value: { ready: true } });
+    ctx.stateWriter.queue({ type: 'set', path: 'session.status.ready', value: true });
     return { status: 'success', message: 'session marked ready' };
   },
 };

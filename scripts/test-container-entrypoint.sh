@@ -87,16 +87,16 @@ if [[ "$SKIP_PREP" -ne 1 ]]; then
   log "Resetting & migrating test database (npm run test:setup)..."
   # npm run test:setup
 
-  log "Running Vitest + Allure suite (npm run test:allure)..."
-  if npm run test:allure; then
-    log "Initial test suite completed successfully."
-  else
-    EXIT_CODE=$?
-    log "Initial test suite failed (exit $EXIT_CODE). You can investigate and rerun inside this shell."
-  fi
-
   echo "$TEST_PREP_VERSION" >"$MARKER_FILE"
   log "Environment marker updated to version $TEST_PREP_VERSION at $MARKER_FILE."
+fi
+
+log "Running Vitest + Allure suite (npm run test:allure)..."
+if npm run test:allure; then
+  log "Initial test suite completed successfully."
+else
+  EXIT_CODE=$?
+  log "Initial test suite failed (exit $EXIT_CODE). You can investigate and rerun inside this shell."
 fi
 
 cleanup() {
