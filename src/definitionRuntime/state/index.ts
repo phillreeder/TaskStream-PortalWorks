@@ -1,7 +1,19 @@
 export { defineState, isValidatedStateDefinition } from './defineState.js';
 export { StateChangeValidationError, StateDefinitionValidationError } from './errors.js';
 export type { StateChangeValidationErrorCode } from './errors.js';
+export {
+  applyAppend,
+  applyArrayOperation,
+  applyChanges,
+  applyFieldChange,
+  applyPop,
+  applyRemoveIndex,
+  applyReplace,
+  applySetIndex,
+  applyShift,
+} from './applyChanges.js';
 export { validateAllowedKeys } from './validateAllowedKeys.js';
+export { validateAndApply } from './validateAndApply.js';
 export {
   validateArrayOperation,
   validateArrayOperationPayload,
@@ -13,6 +25,16 @@ export { validateConstraintDefinition } from './validateConstraintDefinition.js'
 export { validateDefaultsAgainstSchema } from './validateDefaultsAgainstSchema.js';
 export { validateDefinitionStructure } from './validateDefinitionStructure.js';
 export { validateFieldDefinition } from './validateFieldDefinition.js';
+export {
+  evaluateConstraint,
+  evaluateMaxValue,
+  evaluateMinValue,
+  evaluateRequiredIf,
+  evaluateStateConstraints,
+  evaluateTimeToLive,
+  validateFieldValue,
+  validateState,
+} from './validateState.js';
 export type {
   ArrayOperation,
   ArrayOperationKind,
@@ -26,6 +48,7 @@ export type {
   FieldDefinition,
   FieldDefinitions,
   FieldChangeFromDefinition,
+  FieldValueFromDefinition,
   InlineObjectDefinition,
   NumberFieldDefinition,
   StateChanges,
