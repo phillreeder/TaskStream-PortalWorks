@@ -1,6 +1,7 @@
 export { defineState, isValidatedStateDefinition } from './defineState.js';
 export { StateChangeValidationError, StateDefinitionValidationError } from './errors.js';
 export type { StateChangeValidationErrorCode } from './errors.js';
+export { areStructurallyEqual, compare, createDiff } from './comparison/index.js';
 export {
   applyAppend,
   applyArrayOperation,
@@ -56,3 +57,4 @@ export type {
   StateDefinitionInput,
   StringFieldDefinition,
 } from './types/index.js';
+export type { ComparisonResult, StateDiff, StateDiffChange } from './comparison/index.js';
