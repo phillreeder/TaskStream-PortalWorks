@@ -1,9 +1,35 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 import { allureReporter } from './tests/reporters/allureReporter';
 
 const coverageDir = process.env.VITEST_COVERAGE_DIR ?? 'coverage';
 
+const resolveTypeScriptJsSpecifiers = () => ({
+  name: 'resolve-typescript-js-specifiers',
+  enforce: 'pre' as const,
+  async resolveId(source: string, importer?: string) {
+    if (importer === undefined || source.startsWith('.') === false || source.endsWith('.js') === false) {
+      return null;
+    }
+
+    const importerDirectory = path.dirname(importer);
+    const basePath = path.resolve(importerDirectory, source.slice(0, -3));
+    const candidateExtensions = ['.ts', '.tsx', '.mts', '.cts'];
+
+    for (const extension of candidateExtensions) {
+      const candidatePath = `${basePath}${extension}`;
+      if (existsSync(candidatePath)) {
+        return candidatePath;
+      }
+    }
+
+    return null;
+  },
+});
+
 export default defineConfig({
+  plugins: [resolveTypeScriptJsSpecifiers()],
   test: {
     globals: false,
     environment: 'node',
