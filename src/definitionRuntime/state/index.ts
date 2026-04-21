@@ -15,6 +15,7 @@ export {
 } from './applyChanges.js';
 export { validateAllowedKeys } from './validateAllowedKeys.js';
 export { validateAndApply } from './validateAndApply.js';
+export { createStateSession } from './stateSession.js';
 export {
   validateArrayOperation,
   validateArrayOperationPayload,
@@ -57,4 +58,11 @@ export type {
   StateDefinitionInput,
   StringFieldDefinition,
 } from './types/index.js';
+export type {
+  StateSession,
+  StateSessionValidationErrorSnapshot,
+  StateSessionValidationFailure,
+  StateSessionValidationResult,
+  StateSessionValidationSuccess,
+} from './stateSession.js';
 export type { ComparisonResult, StateDiff, StateDiffChange } from './comparison/index.js';
