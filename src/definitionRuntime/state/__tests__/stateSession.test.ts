@@ -4,6 +4,7 @@ import { createStateSession, defineState } from '../index.js';
 type RuntimeState = {
   count: number;
   status: 'pending' | 'running';
+  note: string;
   tags: string[];
 };
 
@@ -15,6 +16,7 @@ function createDefinition(options: { strict?: boolean } = {}) {
     defaults: {
       count: 1,
       status: 'pending',
+      note: '',
       tags: ['a', 'b'],
     },
     fields: {
@@ -24,6 +26,16 @@ function createDefinition(options: { strict?: boolean } = {}) {
       status: {
         type: 'enum',
         values: ['pending', 'running'] as const,
+      },
+      note: {
+        type: 'string',
+        constraints: [
+          {
+            kind: 'required_if',
+            phase: 'state',
+            payload: { predicate: (state) => state.status === 'running' },
+          },
+        ],
       },
       tags: {
         type: 'array',
@@ -39,6 +51,7 @@ function createPreviousState(): RuntimeState {
   return {
     count: 1,
     status: 'pending',
+    note: '',
     tags: ['a', 'b'],
   };
 }
@@ -168,5 +181,65 @@ describe('createStateSession', () => {
 
     expect(first.toChanges()).toEqual(second.toChanges());
     expect(first.validationResult()).toEqual(second.validationResult());
+  });
+
+  it('returns valid for a valid full resulting state', () => {
+    const session = createStateSession(createDefinition(), createPreviousState());
+
+    session.set('status', 'running').set('note', 'ready').set('tags', { op: 'append', payload: { value: 'c' } });
+
+    expect(session.validate()).toEqual({ valid: true });
+  });
+
+  it('returns invalid for state-phase validation failures without mutating prevState or staged changes', () => {
+    const previousState = createPreviousState();
+    const session = createStateSession(createDefinition(), previousState);
+
+    session.set('status', 'running');
+    const stagedBeforeValidation = session.toChanges();
+
+    expect(session.validate()).toEqual({
+      valid: false,
+      errors: [
+        {
+          code: 'STATE_CONSTRAINT_VIOLATION',
+          path: 'nextState.note',
+          message: 'nextState.note is required by state constraint "required_if"',
+        },
+      ],
+    });
+    expect(previousState).toEqual(createPreviousState());
+    expect(session.toChanges()).toEqual(stagedBeforeValidation);
+  });
+
+  it('converts transition errors into deterministic invalid results without throwing', () => {
+    const session = createStateSession(createDefinition({ strict: true }), createPreviousState());
+
+    expect(() => session.set('unknownField' as never, 123 as never)).not.toThrow();
+    expect(() => session.validate()).not.toThrow();
+
+    expect(session.validate()).toEqual({
+      valid: false,
+      errors: [
+        {
+          code: 'UNKNOWN_FIELD',
+          path: 'stateChanges.unknownField',
+          message: 'stateChanges.unknownField is not declared in definition.fields',
+        },
+      ],
+    });
+  });
+
+  it('returns deterministic full validation results for repeated identical sequences', () => {
+    const definition = createDefinition();
+    const previousState = createPreviousState();
+
+    const first = createStateSession(definition, previousState);
+    const second = createStateSession(definition, previousState);
+
+    first.set('status', 'running');
+    second.set('status', 'running');
+
+    expect(first.validate()).toEqual(second.validate());
   });
 });

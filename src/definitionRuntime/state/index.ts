@@ -60,6 +60,9 @@ export type {
 } from './types/index.js';
 export type {
   StateSession,
+  StateSessionFullValidationFailure,
+  StateSessionFullValidationResult,
+  StateSessionFullValidationSuccess,
   StateSessionValidationErrorSnapshot,
   StateSessionValidationFailure,
   StateSessionValidationResult,
