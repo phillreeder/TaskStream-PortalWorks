@@ -1,6 +1,24 @@
 export { defineState, isValidatedStateDefinition } from './defineState.js';
 export { StateChangeValidationError, StateDefinitionValidationError } from './errors.js';
 export type { StateChangeValidationErrorCode } from './errors.js';
+export { StateContainer, StateContainerOperationError } from './StateContainer.js';
+export { StateReader } from './StateReader.js';
+export { StateWriter } from './StateWriter.js';
+export type {
+  StateContainerOperationErrorCode,
+  StateContainerOperationErrorReason,
+  StateContainerConstructorInput,
+  StateContainerOptions,
+  StateContainerValidationFailure,
+  StateContainerValidationResult,
+  StateContainerValidationSuccess,
+  StatePath,
+  StatePathInput,
+  StatePathSegment,
+  StatePathValueInput,
+} from './StateContainer.js';
+export type { StateReaderConstructorInput } from './StateReader.js';
+export type { StateWriterConstructorInput } from './StateWriter.js';
 export { areStructurallyEqual, compare, createDiff } from './comparison/index.js';
 export {
   applyAppend,
