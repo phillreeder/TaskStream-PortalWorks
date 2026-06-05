@@ -15,7 +15,7 @@ case "$TARGET" in
     ;;
   platform)
     COMPOSE_FILE="$PROJECT_ROOT/Containers/platform/docker-compose.yml"
-    LABEL="PortalWorks platform"
+    LABEL="TaskStream platform"
     ;;
   *)
     echo "Usage: $0 [postgres|pgadmin|platform]"

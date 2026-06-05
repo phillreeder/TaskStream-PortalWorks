@@ -11,7 +11,7 @@ const dirInput = process.env.TEST_WATCH_DIRS ?? 'src tests packages prisma';
 const fileInput = process.env.TEST_WATCH_FILES ?? 'vitest.config.ts tsconfig.json package.json prisma.config.ts';
 const ignoreInput =
   process.env.TEST_WATCH_IGNORE ??
-  'node_modules,.git,dist,allure-report,allure-results,coverage,test-results,PortalWorks.zip,Containers/volumes';
+  'node_modules,.git,dist,allure-report,allure-results,coverage,test-results,TaskStream.zip,Containers/volumes';
 const watchDirs = dirInput.split(/\s+/).map((rel) => rel.trim()).filter(Boolean).map((rel) => path.resolve(root, rel));
 const watchFiles = fileInput.split(/\s+/).map((rel) => rel.trim()).filter(Boolean).map((rel) => path.resolve(root, rel));
 const ignoreTokens = ignoreInput.split(',').map((token) => token.trim()).filter(Boolean);

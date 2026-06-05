@@ -6,7 +6,7 @@ node_modules
 automation
 dist
 /src/clients/TaskStream/recipes/*
-PortalWorks.zip
+TaskStream.zip
 *.zip
 test-results
 allure-report

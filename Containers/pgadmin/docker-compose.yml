@@ -3,7 +3,7 @@ version: "3.9"
 services:
   pgadmin:
     image: dpage/pgadmin4:8.6
-    container_name: portalworks-pgadmin
+    container_name: taskstream-pgadmin
     restart: unless-stopped
     env_file:
       - ../.env
@@ -19,7 +19,7 @@ services:
       postgres:
         condition: service_started
     networks:
-      - portalworks-net
+      - taskstream-net
 
   postgres:
     extends:
@@ -27,5 +27,5 @@ services:
       service: postgres
 
 networks:
-  portalworks-net:
-    name: portalworks-net
+  taskstream-net:
+    name: taskstream-net
