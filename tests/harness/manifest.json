@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "defaultSelectors": [
+    "application:planner-smoke",
+    "module:runtime-scaffold-loader",
+    "module:disabled-would-fail",
+    "infrastructure:harness-stub"
+  ],
+  "paths": [
+    {
+      "selector": "application:planner-smoke",
+      "category": "application",
+      "label": "Planner smoke application path",
+      "enabled": true,
+      "configured": true,
+      "serviceMode": "deterministic-stub",
+      "command": "harness-target:pass"
+    },
+    {
+      "selector": "application:unselected-smoke",
+      "category": "application",
+      "label": "Unselected application path",
+      "enabled": true,
+      "configured": true,
+      "serviceMode": "deterministic-stub",
+      "command": "harness-target:pass"
+    },
+    {
+      "selector": "module:runtime-scaffold-loader",
+      "category": "module",
+      "label": "RuntimeScaffold loader module path",
+      "enabled": true,
+      "configured": true,
+      "serviceMode": "deterministic-stub",
+      "command": "harness-target:pass"
+    },
+    {
+      "selector": "module:disabled-would-fail",
+      "category": "module",
+      "label": "Disabled module path that would fail if executed",
+      "enabled": false,
+      "configured": true,
+      "serviceMode": "deterministic-stub",
+      "command": "harness-target:fail-if-executed"
+    },
+    {
+      "selector": "infrastructure:harness-stub",
+      "category": "infrastructure",
+      "label": "Harness deterministic infrastructure stub",
+      "enabled": true,
+      "configured": true,
+      "serviceMode": "deterministic-stub",
+      "command": "harness-target:pass"
+    },
+    {
+      "selector": "infrastructure:memory-service",
+      "category": "infrastructure",
+      "label": "Harness in-memory infrastructure support",
+      "enabled": true,
+      "configured": true,
+      "serviceMode": "in-memory-service",
+      "command": "harness-target:pass"
+    },
+    {
+      "selector": "infrastructure:redis-disposable",
+      "category": "infrastructure",
+      "label": "Redis disposable service placeholder",
+      "enabled": false,
+      "configured": false,
+      "serviceMode": "real-disposable-service"
+    }
+  ]
+}
