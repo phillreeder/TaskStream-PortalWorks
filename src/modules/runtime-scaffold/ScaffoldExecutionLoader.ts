@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { RUNTIME_SCAFFOLD_TRACE_EVENTS } from '../../trace-events/index.js';
 import { RuntimeScaffoldLoadError } from './errors.js';
 import { ScaffoldDescriptorNormalizer } from './ScaffoldDescriptorNormalizer.js';
 import type {
@@ -36,8 +37,9 @@ export class ScaffoldExecutionLoader {
 
   async loadFromControlFile(controlPath: string): Promise<RuntimeScaffoldLoadResult> {
     const resolvedControlPath = path.resolve(controlPath);
+    const descriptorEvents = RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading;
 
-    const controlRead = await this.traceResult('descriptor-control-read', { path: resolvedControlPath }, () =>
+    const controlRead = await this.traceResult(descriptorEvents.controlRead, { path: resolvedControlPath }, () =>
       readJsonFile(this.fileSystem, resolvedControlPath, 'control'),
     );
     if (!controlRead.ok) {
@@ -48,7 +50,7 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const controlResult = await this.traceResult('descriptor-control-normalize', { path: resolvedControlPath }, () =>
+    const controlResult = await this.traceResult(descriptorEvents.controlNormalize, { path: resolvedControlPath }, () =>
       normalizeControlFile(controlRead.value, resolvedControlPath),
     );
     if (!controlResult.ok) {
@@ -60,7 +62,7 @@ export class ScaffoldExecutionLoader {
     }
 
     const executionPath = await this.traceResult(
-      'descriptor-execution-path-resolve',
+      descriptorEvents.executionPathResolve,
       { path: resolvedControlPath, activeExecutionFile: controlResult.control.activeExecutionFile },
       () => resolveExecutionPath(controlResult.control.activeExecutionFile, resolvedControlPath),
     );
@@ -72,7 +74,7 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const executionFormat = await this.traceResult('descriptor-format-detect', { path: executionPath.path }, () =>
+    const executionFormat = await this.traceResult(descriptorEvents.formatDetect, { path: executionPath.path }, () =>
       detectExecutionFormat(executionPath.path),
     );
     if (!executionFormat.ok) {
@@ -84,7 +86,7 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const descriptorRead = await this.traceResult('descriptor-file-read', { path: executionPath.path }, () =>
+    const descriptorRead = await this.traceResult(descriptorEvents.descriptorFileRead, { path: executionPath.path }, () =>
       readJsonFile(this.fileSystem, executionPath.path, 'execution'),
     );
     if (!descriptorRead.ok) {
@@ -97,7 +99,7 @@ export class ScaffoldExecutionLoader {
     }
 
     try {
-      const normalized = await this.traceValue('descriptor-normalize', { path: executionPath.path }, () =>
+      const normalized = await this.traceValue(descriptorEvents.descriptorNormalize, { path: executionPath.path }, () =>
         this.normalizer.normalize(descriptorRead.value, executionPath.path),
       );
       return {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ModuleLink } from '../../ModuleLink/index.js';
 import { SystemTraceRecorder } from '../../SystemTrace/index.js';
 import type { SystemTraceAdapter, SystemTraceRecord } from '../../SystemTrace/index.js';
+import { RUNTIME_SCAFFOLD_TRACE_EVENTS, RUNTIME_SCAFFOLD_TRACE_SELECTORS, proveTraceEventOrderBySeq } from '../../../trace-events/index.js';
 import { ScaffoldExecutionLoader } from '../ScaffoldExecutionLoader.js';
 import type { RuntimeScaffoldFileSystem } from '../types.js';
 
@@ -68,6 +69,7 @@ const tracedLoader = (files: Record<string, string>) => {
   const moduleLink = new ModuleLink({
     systemTraceRecorder: new SystemTraceRecorder({ adapter }),
   });
+  const descriptorEvents = RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading;
   const tracer = moduleLink.systemTrace.createTracer({
     source: {
       relativePath: 'src/modules/runtime-scaffold/ScaffoldExecutionLoader.ts',
@@ -80,12 +82,12 @@ const tracedLoader = (files: Record<string, string>) => {
     rubric: 'descriptor-loading',
     tags: ['runtime-scaffold'],
     presets: {
-      'descriptor-control-read': { operation: 'descriptor-control-read' },
-      'descriptor-control-normalize': { operation: 'descriptor-control-normalize' },
-      'descriptor-execution-path-resolve': { operation: 'descriptor-execution-path-resolve' },
-      'descriptor-format-detect': { operation: 'descriptor-format-detect' },
-      'descriptor-file-read': { operation: 'descriptor-file-read' },
-      'descriptor-normalize': { operation: 'descriptor-normalize' },
+      [descriptorEvents.controlRead]: { operation: descriptorEvents.controlRead },
+      [descriptorEvents.controlNormalize]: { operation: descriptorEvents.controlNormalize },
+      [descriptorEvents.executionPathResolve]: { operation: descriptorEvents.executionPathResolve },
+      [descriptorEvents.formatDetect]: { operation: descriptorEvents.formatDetect },
+      [descriptorEvents.descriptorFileRead]: { operation: descriptorEvents.descriptorFileRead },
+      [descriptorEvents.descriptorNormalize]: { operation: descriptorEvents.descriptorNormalize },
     },
   });
 
@@ -317,13 +319,58 @@ describe('ScaffoldExecutionLoader', () => {
     const result = await loader.loadFromControlFile('/scaffold/control.json');
 
     expect(result.ok).toBe(true);
+    const descriptorEvents = RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading;
     const spanRecords = adapter.records.filter((record) => record.family === 'span');
-    expect(spanRecords.some((record) => record.operation === 'descriptor-file-read' && record.phase === 'START')).toBe(true);
-    expect(spanRecords.some((record) => record.operation === 'descriptor-normalize' && record.phase === 'END')).toBe(true);
-    const descriptorLoadStart = spanRecords.find((record) => record.operation === 'descriptor-file-read' && record.phase === 'START');
-    const descriptorLoadEnd = spanRecords.find((record) => record.operation === 'descriptor-file-read' && record.phase === 'END');
+    expect(spanRecords.some((record) => record.operation === descriptorEvents.descriptorFileRead && record.phase === 'START')).toBe(true);
+    expect(spanRecords.some((record) => record.operation === descriptorEvents.descriptorNormalize && record.phase === 'END')).toBe(true);
+    const descriptorLoadStart = spanRecords.find((record) => record.operation === descriptorEvents.descriptorFileRead && record.phase === 'START');
+    const descriptorLoadEnd = spanRecords.find((record) => record.operation === descriptorEvents.descriptorFileRead && record.phase === 'END');
     expect(descriptorLoadStart?.traceId).toBe(descriptorLoadEnd?.traceId);
     expect(descriptorLoadStart?.spanId).toBe(descriptorLoadEnd?.spanId);
+  });
+
+  it('runtime-scaffold uses shared trace event catalog names', async () => {
+    const { adapter, loader } = tracedLoader({
+      '/scaffold/control.json': json({ activeExecutionFile: './executions/flow-only.json' }),
+      '/scaffold/executions/flow-only.json': json(validBaseDescriptor),
+    });
+
+    await loader.loadFromControlFile('/scaffold/control.json');
+
+    const emittedOperations = new Set(adapter.records.map((record) => record.operation));
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.controlRead)).toBe(true);
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.controlNormalize)).toBe(true);
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.executionPathResolve)).toBe(true);
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.formatDetect)).toBe(true);
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.descriptorFileRead)).toBe(true);
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.descriptorNormalize)).toBe(true);
+  });
+
+  it('TaskStream / RuntimeScaffold / SystemTrace Order Proof proves descriptor trace order by seq', async () => {
+    const { adapter, loader } = tracedLoader({
+      '/scaffold/control.json': json({ activeExecutionFile: './executions/flow-only.json' }),
+      '/scaffold/executions/flow-only.json': json(validBaseDescriptor),
+    });
+
+    await loader.loadFromControlFile('/scaffold/control.json');
+
+    const proof = proveTraceEventOrderBySeq(
+      adapter.records,
+      RUNTIME_SCAFFOLD_TRACE_SELECTORS.descriptorFileReadEnd,
+      RUNTIME_SCAFFOLD_TRACE_SELECTORS.descriptorNormalizeStart,
+    );
+
+    expect(proof).toMatchObject({
+      ok: true,
+      before: {
+        operation: RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.descriptorFileRead,
+        phase: 'END',
+      },
+      after: {
+        operation: RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.descriptorNormalize,
+        phase: 'START',
+      },
+    });
   });
 
   it('records RuntimeScaffold source identity and operation classification in trace spans', async () => {
@@ -334,7 +381,9 @@ describe('ScaffoldExecutionLoader', () => {
 
     await loader.loadFromControlFile('/scaffold/control.json');
 
-    const endRecord = adapter.records.find((record) => record.operation === 'descriptor-normalize' && record.phase === 'END');
+    const endRecord = adapter.records.find(
+      (record) => record.operation === RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.descriptorNormalize && record.phase === 'END',
+    );
     expect(endRecord).toMatchObject({
       source: {
         relativePath: 'src/modules/runtime-scaffold/ScaffoldExecutionLoader.ts',
@@ -368,9 +417,28 @@ describe('ScaffoldExecutionLoader', () => {
     }
     expect(result.error.code).toBe('DESCRIPTOR_INVALID');
     expect(adapter.records.at(-1)).toMatchObject({
-      operation: 'descriptor-normalize',
+      operation: RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.descriptorNormalize,
       phase: 'END',
       status: 'error',
     });
+  });
+});
+
+describe('TaskStream / RuntimeScaffold / Trace Event Catalog', () => {
+  it('runtime-scaffold uses shared trace event catalog names', async () => {
+    const { adapter, loader } = tracedLoader({
+      '/scaffold/control.json': json({ activeExecutionFile: './executions/flow-only.json' }),
+      '/scaffold/executions/flow-only.json': json(validBaseDescriptor),
+    });
+
+    await loader.loadFromControlFile('/scaffold/control.json');
+
+    const emittedOperations = new Set(adapter.records.map((record) => record.operation));
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.controlRead)).toBe(true);
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.controlNormalize)).toBe(true);
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.executionPathResolve)).toBe(true);
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.formatDetect)).toBe(true);
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.descriptorFileRead)).toBe(true);
+    expect(emittedOperations.has(RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.descriptorNormalize)).toBe(true);
   });
 });
