@@ -15,5 +15,7 @@ export type {
   RuntimeScaffoldReference,
   RuntimeScaffoldRunFileFormat,
   RuntimeScaffoldStateReference,
+  RuntimeScaffoldSystemTraceTracer,
+  RuntimeScaffoldTraceSpanCall,
   ScaffoldControlFile,
 } from './types.js';

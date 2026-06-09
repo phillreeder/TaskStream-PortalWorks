@@ -57,6 +57,23 @@ export interface RuntimeScaffoldFileSystem {
   readTextFile(filePath: string): Promise<string>;
 }
 
+export interface RuntimeScaffoldTraceSpanCall {
+  readonly operationKey: string;
+  readonly data?: JsonValue;
+  readonly context?: JsonValue;
+  readonly metadata?: {
+    readonly operation?: string;
+    readonly topic?: string;
+    readonly area?: string;
+    readonly rubric?: string;
+    readonly tags?: readonly string[];
+  };
+}
+
+export interface RuntimeScaffoldSystemTraceTracer {
+  span<T>(call: RuntimeScaffoldTraceSpanCall, fn: () => T | Promise<T>): Promise<T>;
+}
+
 export interface RuntimeScaffoldLoadSuccess {
   readonly ok: true;
   readonly controlPath: string;

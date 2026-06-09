@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -8,10 +8,12 @@ import {
   emitHarnessAllureEvidence,
   generateAllureReport,
   harnessReportInfo,
+  projectRoot,
   readAllureResults,
   runHarness,
   runHarnessAllure,
   verifyHarnessAllureEvidence,
+  verifyTicketAllureEvidenceMapping,
 } from './harness.mjs';
 
 const tempHarnessDir = () => mkdtempSync(path.join(tmpdir(), 'taskstream-harness-allure-'));
@@ -24,6 +26,42 @@ const dirs = () => {
     allureResultsDir: path.join(root, 'allure-results'),
     allureReportDir: path.join(root, 'allure-report'),
   };
+};
+
+const writeSystemTraceFixture = (filePath) => {
+  writeFileSync(filePath, [
+    JSON.stringify({
+      seq: 1,
+      family: 'span',
+      phase: 'START',
+      traceId: 'trace-1',
+      spanId: 'span-1',
+      operation: 'fixture-operation',
+      timestamp: '2026-06-09T00:00:00.000Z',
+      tags: ['fixture'],
+    }),
+    JSON.stringify({
+      seq: 2,
+      family: 'span',
+      phase: 'END',
+      status: 'error',
+      traceId: 'trace-1',
+      spanId: 'span-1',
+      operation: 'fixture-operation',
+      timestamp: '2026-06-09T00:00:00.001Z',
+      tags: ['fixture'],
+      timing: {
+        monotonicStart: 1,
+        monotonicEnd: 3,
+        durationMs: 2,
+      },
+      error: {
+        name: 'Error',
+        message: 'fixture failure',
+      },
+    }),
+    '',
+  ].join('\n'));
 };
 
 test('emits allure result for harness selection plan', () => {
@@ -173,4 +211,92 @@ test('runs harness allure base tests without unrelated prisma setup', async () =
     }
     rmSync(context.root, { recursive: true, force: true });
   }
+});
+
+test('allure groups output by owning section', () => {
+  const context = dirs();
+  try {
+    runHarnessAllure({ mode: 'run', ...context, generateReport: false });
+    const results = readAllureResults(context.allureResultsDir);
+    const labels = results.flatMap((result) => result.labels ?? []);
+    assert.ok(labels.some((label) => label.name === 'ownerType' && label.value === 'Infrastructure'));
+    assert.ok(labels.some((label) => label.name === 'ownerType' && label.value === 'Application Path'));
+    assert.ok(labels.some((label) => label.name === 'ownerType' && label.value === 'Module'));
+    assert.ok(labels.some((label) => label.name === 'testConcern' && label.value === 'Harness Selection Evidence'));
+    assert.ok(labels.some((label) => label.name === 'testConcern' && label.value === 'Harness Target Selection'));
+    verifyHarnessAllureEvidence({
+      evidenceDir: context.evidenceDir,
+      resultsDir: context.allureResultsDir,
+      reportDir: context.allureReportDir,
+      requireReport: false,
+    });
+  } finally {
+    rmSync(context.root, { recursive: true, force: true });
+  }
+});
+
+test('allure exposes raw evidence attachments', async () => {
+  const context = dirs();
+  try {
+    const systemTraceOutputPath = path.join(context.root, 'systemtrace.jsonl');
+    writeSystemTraceFixture(systemTraceOutputPath);
+    runHarnessAllure({
+      mode: 'run',
+      ...context,
+      generateReport: false,
+      systemTraceOutputPath,
+      requireFailedSystemTraceSpan: true,
+    });
+
+    const { results } = verifyHarnessAllureEvidence({
+      evidenceDir: context.evidenceDir,
+      resultsDir: context.allureResultsDir,
+      reportDir: context.allureReportDir,
+      requireReport: false,
+      requireSystemTrace: true,
+    });
+    const systemTrace = results.find((result) => result.name === 'SystemTrace output: verified');
+    const attachmentNames = new Set(systemTrace.attachments.map((attachment) => attachment.name));
+    assert.deepEqual(
+      [...attachmentNames].sort(),
+      ['failed-spans.json', 'systemtrace-summary.json', 'systemtrace.jsonl'].sort(),
+    );
+    const rawTraceAttachment = systemTrace.attachments.find((attachment) => attachment.name === 'systemtrace.jsonl');
+    const attachedTrace = await readFile(path.join(context.allureResultsDir, rawTraceAttachment.source), 'utf8');
+    assert.match(attachedTrace, /fixture-operation/);
+  } finally {
+    rmSync(context.root, { recursive: true, force: true });
+  }
+});
+
+test('fails allure output verification when required systemtrace evidence is missing', () => {
+  const context = dirs();
+  try {
+    runHarnessAllure({ mode: 'run', ...context, generateReport: false });
+    assert.throws(
+      () =>
+        verifyHarnessAllureEvidence({
+          evidenceDir: context.evidenceDir,
+          resultsDir: context.allureResultsDir,
+          reportDir: context.allureReportDir,
+          requireReport: false,
+          requireSystemTrace: true,
+        }),
+      /Missing SystemTrace output Allure result/,
+    );
+  } finally {
+    rmSync(context.root, { recursive: true, force: true });
+  }
+});
+
+test('tickets record allure evidence mapping', () => {
+  const ticketRoot = path.resolve(projectRoot, '../docs/System/DocStream/Implementation/Tickets');
+  const result = verifyTicketAllureEvidenceMapping({
+    ticketPaths: [
+      path.join(ticketRoot, '00-template.md'),
+      path.join(ticketRoot, 'ALLURE-OUTPUT-001-all-output-evidence-visible-in-allure/00-ticket.md'),
+    ],
+  });
+
+  assert.equal(result.checked, 2);
 });

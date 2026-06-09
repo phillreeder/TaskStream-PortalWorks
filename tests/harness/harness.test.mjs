@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -8,6 +8,7 @@ import {
   runHarness,
   selectionLog,
   verifyHarnessEvidence,
+  verifySystemTraceOutput,
 } from './harness.mjs';
 
 const tempHarnessDir = () => mkdtempSync(path.join(tmpdir(), 'taskstream-harness-'));
@@ -151,6 +152,136 @@ test('harness base tests avoid unrelated prisma global setup', () => {
     } else {
       process.env.TEST_DATABASE_URL = originalDatabaseUrl;
     }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('harness verifies systemtrace output exists and parses valid json records', () => {
+  const dir = tempHarnessDir();
+  try {
+    const tracePath = path.join(dir, 'systemtrace.jsonl');
+    writeFileSync(tracePath, [
+      JSON.stringify({
+        seq: 1,
+        family: 'span',
+        phase: 'START',
+        traceId: 'trace-1',
+        spanId: 'span-1',
+        timestamp: '2026-06-08T00:00:00.000Z',
+        tags: [],
+      }),
+      JSON.stringify({
+        seq: 2,
+        family: 'span',
+        phase: 'END',
+        status: 'ok',
+        traceId: 'trace-1',
+        spanId: 'span-1',
+        timestamp: '2026-06-08T00:00:00.001Z',
+        tags: [],
+        timing: {
+          monotonicStart: 1,
+          monotonicEnd: 2,
+          durationMs: 1,
+        },
+      }),
+      '',
+    ].join('\n'));
+
+    const result = verifySystemTraceOutput({ filePath: tracePath });
+
+    assert.equal(result.status, 'verified');
+    assert.equal(result.recordCount, 2);
+    assert.equal(result.linkedSpanPairs, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('harness verifies systemtrace sequence start-end duration and failed span closure', () => {
+  const dir = tempHarnessDir();
+  try {
+    const tracePath = path.join(dir, 'systemtrace.jsonl');
+    writeFileSync(tracePath, [
+      JSON.stringify({
+        seq: 1,
+        family: 'span',
+        phase: 'START',
+        traceId: 'trace-1',
+        spanId: 'span-1',
+        timestamp: '2026-06-08T00:00:00.000Z',
+        tags: [],
+      }),
+      JSON.stringify({
+        seq: 2,
+        family: 'span',
+        phase: 'END',
+        status: 'error',
+        traceId: 'trace-1',
+        spanId: 'span-1',
+        timestamp: '2026-06-08T00:00:00.001Z',
+        tags: [],
+        timing: {
+          monotonicStart: 1,
+          monotonicEnd: 4,
+          durationMs: 3,
+        },
+        error: {
+          name: 'Error',
+          message: 'boom',
+        },
+      }),
+      '',
+    ].join('\n'));
+
+    const result = runHarness({
+      mode: 'run',
+      evidenceDir: path.join(dir, 'evidence'),
+      systemTraceOutputPath: tracePath,
+      requireFailedSystemTraceSpan: true,
+    });
+
+    assert.equal(result.summary.systemTrace.failedSpanEnds, 1);
+    assert.equal(result.summary.systemTrace.linkedSpanPairs, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('harness fails clearly when expected systemtrace output is missing or malformed', () => {
+  const dir = tempHarnessDir();
+  try {
+    assert.throws(
+      () => verifySystemTraceOutput({ filePath: path.join(dir, 'missing.jsonl') }),
+      /Missing SystemTrace output file/,
+    );
+
+    const malformed = path.join(dir, 'bad.jsonl');
+    writeFileSync(malformed, '{');
+    assert.throws(
+      () => verifySystemTraceOutput({ filePath: malformed }),
+      /not valid JSON/,
+    );
+
+    const nonMonotonic = path.join(dir, 'non-monotonic.jsonl');
+    writeFileSync(nonMonotonic, [
+      JSON.stringify({ seq: 2, family: 'span', phase: 'START', traceId: 't', spanId: 's', tags: [] }),
+      JSON.stringify({
+        seq: 1,
+        family: 'span',
+        phase: 'END',
+        traceId: 't',
+        spanId: 's',
+        tags: [],
+        timing: { monotonicStart: 1, monotonicEnd: 2, durationMs: 1 },
+      }),
+      '',
+    ].join('\n'));
+    assert.throws(
+      () => verifySystemTraceOutput({ filePath: nonMonotonic }),
+      /seq is not monotonic/,
+    );
+  } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });

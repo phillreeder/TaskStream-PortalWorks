@@ -21,6 +21,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:allure": "node ./scripts/test-with-allure.mjs",
+    "test:allure:watch": "node ./scripts/test-allure-watch.mjs",
+    "test:allure:watch:no-db": "node ./scripts/test-allure-watch.mjs --no-db",
     "test:allure:open": "node ./scripts/open-allure-report.mjs",
     "test:harness:list": "node ./scripts/test-harness.mjs list",
     "test:harness:run": "node ./scripts/test-harness.mjs run",

@@ -188,14 +188,36 @@ export function writeHarnessEvidence(summary, evidenceDir = defaultPaths.evidenc
   mkdirSync(evidenceDir, { recursive: true });
   const logPath = path.join(evidenceDir, 'selection.log');
   const summaryPath = path.join(evidenceDir, 'summary.json');
+  const evidence = { logPath, summaryPath };
   writeFileSync(logPath, selectionLog(summary));
   writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
-  return { logPath, summaryPath };
+  if (summary.systemTrace) {
+    const systemTraceSummaryPath = path.join(evidenceDir, 'systemtrace-summary.json');
+    writeFileSync(systemTraceSummaryPath, `${JSON.stringify(summary.systemTrace, null, 2)}\n`);
+    evidence.systemTraceSummaryPath = systemTraceSummaryPath;
+    evidence.systemTraceOutputPath = summary.systemTrace.filePath;
+
+    if ((summary.systemTrace.failedSpans ?? []).length > 0) {
+      const failedSpansPath = path.join(evidenceDir, 'failed-spans.json');
+      writeFileSync(failedSpansPath, `${JSON.stringify(summary.systemTrace.failedSpans, null, 2)}\n`);
+      evidence.failedSpansPath = failedSpansPath;
+    }
+  }
+  return evidence;
 }
 
 export function runHarness(options = {}) {
   const plan = buildHarnessPlan(options);
-  const summary = executeHarnessPlan(plan);
+  let summary = executeHarnessPlan(plan);
+  if (options.systemTraceOutputPath) {
+    summary = {
+      ...summary,
+      systemTrace: verifySystemTraceOutput({
+        filePath: options.systemTraceOutputPath,
+        requireFailedSpan: Boolean(options.requireFailedSystemTraceSpan),
+      }),
+    };
+  }
   const evidence = writeHarnessEvidence(summary, options.evidenceDir ?? defaultPaths.evidenceDir);
   return {
     summary,
@@ -245,11 +267,111 @@ export function verifyHarnessEvidence({
   return summary;
 }
 
+export function verifySystemTraceOutput({ filePath, requireFailedSpan = false } = {}) {
+  if (!filePath) {
+    throw new Error('SystemTrace verification requires filePath');
+  }
+  if (!existsSync(filePath)) {
+    throw new Error(`Missing SystemTrace output file: ${filePath}`);
+  }
+
+  const lines = readFileSync(filePath, 'utf8')
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) {
+    throw new Error(`SystemTrace output file has no records: ${filePath}`);
+  }
+
+  const records = lines.map((line, index) => {
+    try {
+      return JSON.parse(line);
+    } catch (cause) {
+      throw new Error(`SystemTrace output line ${index + 1} is not valid JSON: ${cause.message}`);
+    }
+  });
+
+  let previousSeq = 0;
+  for (const [index, record] of records.entries()) {
+    if (!Number.isInteger(record.seq)) {
+      throw new Error(`SystemTrace record ${index + 1} is missing integer seq`);
+    }
+    if (record.seq <= previousSeq) {
+      throw new Error(`SystemTrace seq is not monotonic at record ${index + 1}`);
+    }
+    previousSeq = record.seq;
+  }
+
+  const starts = new Map();
+  const ends = [];
+  for (const record of records) {
+    if (record.family !== 'span' || !record.traceId || !record.spanId) {
+      continue;
+    }
+    const key = `${record.traceId}:${record.spanId}`;
+    if (record.phase === 'START') {
+      starts.set(key, record);
+    } else if (record.phase === 'END') {
+      ends.push({ key, record });
+      if (!record.timing || typeof record.timing.durationMs !== 'number') {
+        throw new Error(`SystemTrace END span is missing durationMs for ${key}`);
+      }
+      if (typeof record.timing.monotonicStart !== 'number' || typeof record.timing.monotonicEnd !== 'number') {
+        throw new Error(`SystemTrace END span is missing monotonic timing for ${key}`);
+      }
+    }
+  }
+
+  if (ends.length === 0) {
+    throw new Error('SystemTrace output has no END span records');
+  }
+
+  const linkedPairs = ends.filter(({ key }) => starts.has(key));
+  if (linkedPairs.length === 0) {
+    throw new Error('SystemTrace output has no linked START/END span pairs');
+  }
+
+  const failedSpans = ends.filter(({ record }) => record.status === 'error');
+  if (requireFailedSpan && failedSpans.length === 0) {
+    throw new Error('SystemTrace output has no failed END span records');
+  }
+
+  return {
+    filePath,
+    recordCount: records.length,
+    firstSeq: records[0].seq,
+    lastSeq: records.at(-1).seq,
+    linkedSpanPairs: linkedPairs.length,
+    failedSpanEnds: failedSpans.length,
+    failedSpans: failedSpans.map(({ record }) => record),
+    status: 'verified',
+  };
+}
+
 function md5(value) {
   return createHash('md5').update(value).digest('hex');
 }
 
-function writeAllureResult({ resultsDir, name, fullName, status, labels = [], attachments = [], statusDetails }) {
+function outputOwnerLabels({ ownerType, owner, concern, requirements = [] }) {
+  return [
+    { name: 'ownerType', value: ownerType },
+    { name: 'owner', value: owner },
+    { name: 'testConcern', value: concern },
+    ...requirements.map((requirement) => ({ name: 'requirement', value: requirement })),
+  ];
+}
+
+function writeAllureResult({
+  resultsDir,
+  name,
+  fullName,
+  status,
+  labels = [],
+  attachments = [],
+  statusDetails,
+  suiteName = 'Infrastructure / Test Harness',
+  containerName = 'TaskStream / Infrastructure / Test Harness',
+}) {
   const testUuid = randomUUID();
   const containerUuid = randomUUID();
   const payload = {
@@ -266,7 +388,8 @@ function writeAllureResult({ resultsDir, name, fullName, status, labels = [], at
     labels: [
       { name: 'language', value: 'JavaScript' },
       { name: 'framework', value: 'taskstream-harness' },
-      { name: 'suite', value: 'Harness Selection' },
+      { name: 'parentSuite', value: 'TaskStream' },
+      { name: 'suite', value: suiteName },
       ...labels,
     ].filter((label) => label.value !== undefined && label.value !== null),
     start: FIXED_START,
@@ -274,7 +397,7 @@ function writeAllureResult({ resultsDir, name, fullName, status, labels = [], at
   };
   const container = {
     uuid: containerUuid,
-    name: 'Harness Selection',
+    name: containerName,
     children: [testUuid],
     befores: [],
     afters: [],
@@ -312,13 +435,19 @@ export function emitHarnessAllureEvidence(options = {}) {
   writeAllureResult({
     resultsDir,
     name: `Harness selection plan: ${summary.status}`,
-    fullName: `TaskStream Harness :: selection plan :: ${summary.status}`,
+    fullName: `TaskStream / Infrastructure / Test Harness :: selection plan :: ${summary.status}`,
     status: summary.status === 'blocked' ? 'skipped' : 'passed',
     statusDetails:
       summary.status === 'blocked'
         ? { message: 'Harness selector validation blocked execution before test commands ran' }
         : undefined,
     labels: [
+      ...outputOwnerLabels({
+        ownerType: 'Infrastructure',
+        owner: 'Test Harness',
+        concern: 'Harness Selection Evidence',
+        requirements: ['REQ-INFRA-OBS-ALLURE-001', 'REQ-INFRA-OBS-ALLURE-002', 'REQ-INFRA-OBS-ALLURE-004'],
+      }),
       { name: 'harnessStatus', value: summary.status },
       { name: 'harnessMode', value: summary.mode },
     ],
@@ -329,18 +458,69 @@ export function emitHarnessAllureEvidence(options = {}) {
   });
 
   for (const outcome of summary.outcomes) {
+    const ownerType = outcome.category === 'application'
+      ? 'Application Path'
+      : outcome.category === 'module'
+        ? 'Module'
+        : 'Infrastructure';
     writeAllureResult({
       resultsDir,
       name: `${outcome.state} ${outcome.selector}`,
-      fullName: `TaskStream Harness :: ${outcome.state} :: ${outcome.selector}`,
+      fullName: `TaskStream / ${ownerType} / ${outcome.selector} :: ${outcome.state}`,
       status: outcome.state === 'RUN' ? 'passed' : 'skipped',
       statusDetails: { message: outcome.reason },
+      suiteName: `${ownerType} / Harness Target Selection`,
+      containerName: `TaskStream / ${ownerType} / Harness Target Selection`,
       labels: [
+        ...outputOwnerLabels({
+          ownerType,
+          owner: outcome.selector,
+          concern: 'Harness Target Selection',
+          requirements: ['REQ-INFRA-OBS-ALLURE-002', 'REQ-INFRA-OBS-ALLURE-003'],
+        }),
         { name: 'harnessState', value: outcome.state },
         { name: 'harnessSelector', value: outcome.selector },
         { name: 'harnessCategory', value: outcome.category },
         { name: 'harnessServiceMode', value: outcome.serviceMode },
       ],
+    });
+  }
+
+  if (summary.systemTrace) {
+    const attachments = [];
+    if (evidence.systemTraceOutputPath && existsSync(evidence.systemTraceOutputPath)) {
+      const traceAttachment = `${randomUUID()}-attachment.jsonl`;
+      copyFileSync(evidence.systemTraceOutputPath, path.join(resultsDir, traceAttachment));
+      attachments.push({ name: 'systemtrace.jsonl', source: traceAttachment, type: 'application/jsonl' });
+    }
+    if (evidence.systemTraceSummaryPath && existsSync(evidence.systemTraceSummaryPath)) {
+      const traceSummaryAttachment = `${randomUUID()}-attachment.json`;
+      copyFileSync(evidence.systemTraceSummaryPath, path.join(resultsDir, traceSummaryAttachment));
+      attachments.push({ name: 'systemtrace-summary.json', source: traceSummaryAttachment, type: 'application/json' });
+    }
+    if (evidence.failedSpansPath && existsSync(evidence.failedSpansPath)) {
+      const failedSpansAttachment = `${randomUUID()}-attachment.json`;
+      copyFileSync(evidence.failedSpansPath, path.join(resultsDir, failedSpansAttachment));
+      attachments.push({ name: 'failed-spans.json', source: failedSpansAttachment, type: 'application/json' });
+    }
+
+    writeAllureResult({
+      resultsDir,
+      name: `SystemTrace output: ${summary.systemTrace.status}`,
+      fullName: `TaskStream / Module / SystemTrace :: output verification :: ${summary.systemTrace.status}`,
+      status: 'passed',
+      suiteName: 'Module / SystemTrace',
+      containerName: 'TaskStream / Module / SystemTrace',
+      labels: [
+        ...outputOwnerLabels({
+          ownerType: 'Module',
+          owner: 'SystemTrace',
+          concern: 'SystemTrace Output Verification',
+          requirements: ['REQ-INFRA-OBS-ALLURE-001', 'REQ-INFRA-OBS-ALLURE-004', 'REQ-INFRA-OBS-ALLURE-006'],
+        }),
+        { name: 'systemTraceStatus', value: summary.systemTrace.status },
+      ],
+      attachments,
     });
   }
 
@@ -405,8 +585,9 @@ export function verifyHarnessAllureEvidence({
   requireReport = true,
   requireBlocked = false,
   requireCoreStates = true,
+  requireSystemTrace = false,
 } = {}) {
-  verifyHarnessEvidence({ evidenceDir, requireAllStates: requireBlocked, requireCoreStates });
+  const summary = verifyHarnessEvidence({ evidenceDir, requireAllStates: requireBlocked, requireCoreStates });
   const results = readAllureResults(resultsDir);
   if (results.length === 0) {
     throw new Error(`Missing harness Allure result files in ${resultsDir}`);
@@ -437,12 +618,73 @@ export function verifyHarnessAllureEvidence({
   if (!attachments.some((attachment) => attachment.name === 'summary.json')) {
     throw new Error('Missing summary.json Allure attachment');
   }
+  assertAttachmentSourcesExist(resultsDir, attachments);
+
+  if (!results.some((result) => hasLabel(result, 'ownerType') && hasLabel(result, 'owner') && hasLabel(result, 'testConcern'))) {
+    throw new Error('Missing grouped Allure owner/testConcern labels');
+  }
+
+  const requiresSystemTrace = requireSystemTrace || Boolean(summary.systemTrace);
+  if (requiresSystemTrace) {
+    const systemTraceResult = results.find((result) => result.name.startsWith('SystemTrace output:'));
+    if (!systemTraceResult) {
+      throw new Error('Missing SystemTrace output Allure result');
+    }
+    if (!hasLabel(systemTraceResult, 'ownerType', 'Module') || !hasLabel(systemTraceResult, 'owner', 'SystemTrace')) {
+      throw new Error('SystemTrace output Allure result is not grouped by module ownership');
+    }
+    const systemTraceAttachments = systemTraceResult.attachments ?? [];
+    for (const attachmentName of ['systemtrace.jsonl', 'systemtrace-summary.json']) {
+      if (!systemTraceAttachments.some((attachment) => attachment.name === attachmentName)) {
+        throw new Error(`Missing ${attachmentName} Allure attachment`);
+      }
+    }
+    if ((summary.systemTrace?.failedSpanEnds ?? 0) > 0 && !systemTraceAttachments.some((attachment) => attachment.name === 'failed-spans.json')) {
+      throw new Error('Missing failed-spans.json Allure attachment');
+    }
+    assertAttachmentSourcesExist(resultsDir, systemTraceAttachments);
+  }
 
   if (requireReport && !existsSync(path.join(reportDir, 'index.html'))) {
     throw new Error(`Missing harness Allure report index: ${path.join(reportDir, 'index.html')}`);
   }
 
   return { results, plan };
+}
+
+export function verifyTicketAllureEvidenceMapping({ ticketPaths = [] } = {}) {
+  if (!Array.isArray(ticketPaths) || ticketPaths.length === 0) {
+    throw new Error('verifyTicketAllureEvidenceMapping requires ticketPaths');
+  }
+
+  for (const ticketPath of ticketPaths) {
+    const contents = readFileSync(ticketPath, 'utf8');
+    if (!contents.includes('## Output / Allure Visibility')) {
+      throw new Error(`Ticket is missing Output / Allure Visibility section: ${ticketPath}`);
+    }
+    for (const requiredLine of ['Allure group:', 'Allure result or report section:', 'Raw outputs:', 'Attachments / links:', 'Not applicable reason:']) {
+      if (!contents.includes(requiredLine)) {
+        throw new Error(`Ticket is missing ${requiredLine} in Output / Allure Visibility: ${ticketPath}`);
+      }
+    }
+    if (!/Allure evidence:\s*(?!pending|OPEN)(.+)/u.test(contents)) {
+      throw new Error(`Ticket required tests are missing concrete Allure evidence mapping: ${ticketPath}`);
+    }
+  }
+
+  return { checked: ticketPaths.length };
+}
+
+function hasLabel(result, name, value) {
+  return (result.labels ?? []).some((label) => label.name === name && (value === undefined || label.value === value));
+}
+
+function assertAttachmentSourcesExist(resultsDir, attachments) {
+  for (const attachment of attachments) {
+    if (!attachment.source || !existsSync(path.join(resultsDir, attachment.source))) {
+      throw new Error(`Missing Allure attachment file for ${attachment.name}`);
+    }
+  }
 }
 
 export function harnessReportInfo({

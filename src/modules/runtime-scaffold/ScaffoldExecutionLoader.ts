@@ -3,15 +3,18 @@ import path from 'node:path';
 import { RuntimeScaffoldLoadError } from './errors.js';
 import { ScaffoldDescriptorNormalizer } from './ScaffoldDescriptorNormalizer.js';
 import type {
+  JsonObject,
   RuntimeScaffoldFileSystem,
   RuntimeScaffoldLoadResult,
   RuntimeScaffoldRunFileFormat,
+  RuntimeScaffoldSystemTraceTracer,
   ScaffoldControlFile,
 } from './types.js';
 
 export interface ScaffoldExecutionLoaderOptions {
   readonly fileSystem?: RuntimeScaffoldFileSystem;
   readonly normalizer?: ScaffoldDescriptorNormalizer;
+  readonly systemTraceTracer?: RuntimeScaffoldSystemTraceTracer;
 }
 
 export class NodeRuntimeScaffoldFileSystem implements RuntimeScaffoldFileSystem {
@@ -23,16 +26,20 @@ export class NodeRuntimeScaffoldFileSystem implements RuntimeScaffoldFileSystem 
 export class ScaffoldExecutionLoader {
   private readonly fileSystem: RuntimeScaffoldFileSystem;
   private readonly normalizer: ScaffoldDescriptorNormalizer;
+  private readonly systemTraceTracer?: RuntimeScaffoldSystemTraceTracer;
 
   constructor(options: ScaffoldExecutionLoaderOptions = {}) {
     this.fileSystem = options.fileSystem ?? new NodeRuntimeScaffoldFileSystem();
     this.normalizer = options.normalizer ?? new ScaffoldDescriptorNormalizer();
+    this.systemTraceTracer = options.systemTraceTracer;
   }
 
   async loadFromControlFile(controlPath: string): Promise<RuntimeScaffoldLoadResult> {
     const resolvedControlPath = path.resolve(controlPath);
 
-    const controlRead = await readJsonFile(this.fileSystem, resolvedControlPath, 'control');
+    const controlRead = await this.traceResult('descriptor-control-read', { path: resolvedControlPath }, () =>
+      readJsonFile(this.fileSystem, resolvedControlPath, 'control'),
+    );
     if (!controlRead.ok) {
       return {
         ok: false,
@@ -41,7 +48,9 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const controlResult = normalizeControlFile(controlRead.value, resolvedControlPath);
+    const controlResult = await this.traceResult('descriptor-control-normalize', { path: resolvedControlPath }, () =>
+      normalizeControlFile(controlRead.value, resolvedControlPath),
+    );
     if (!controlResult.ok) {
       return {
         ok: false,
@@ -50,7 +59,11 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const executionPath = resolveExecutionPath(controlResult.control.activeExecutionFile, resolvedControlPath);
+    const executionPath = await this.traceResult(
+      'descriptor-execution-path-resolve',
+      { path: resolvedControlPath, activeExecutionFile: controlResult.control.activeExecutionFile },
+      () => resolveExecutionPath(controlResult.control.activeExecutionFile, resolvedControlPath),
+    );
     if (!executionPath.ok) {
       return {
         ok: false,
@@ -59,7 +72,9 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const executionFormat = detectExecutionFormat(executionPath.path);
+    const executionFormat = await this.traceResult('descriptor-format-detect', { path: executionPath.path }, () =>
+      detectExecutionFormat(executionPath.path),
+    );
     if (!executionFormat.ok) {
       return {
         ok: false,
@@ -69,7 +84,9 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const descriptorRead = await readJsonFile(this.fileSystem, executionPath.path, 'execution');
+    const descriptorRead = await this.traceResult('descriptor-file-read', { path: executionPath.path }, () =>
+      readJsonFile(this.fileSystem, executionPath.path, 'execution'),
+    );
     if (!descriptorRead.ok) {
       return {
         ok: false,
@@ -80,7 +97,9 @@ export class ScaffoldExecutionLoader {
     }
 
     try {
-      const normalized = this.normalizer.normalize(descriptorRead.value, executionPath.path);
+      const normalized = await this.traceValue('descriptor-normalize', { path: executionPath.path }, () =>
+        this.normalizer.normalize(descriptorRead.value, executionPath.path),
+      );
       return {
         ok: true,
         controlPath: resolvedControlPath,
@@ -99,6 +118,72 @@ export class ScaffoldExecutionLoader {
       };
     }
   }
+
+  private traceValue<T>(operationKey: string, data: JsonObject, fn: () => T | Promise<T>): Promise<T> {
+    if (!this.systemTraceTracer) {
+      return Promise.resolve(fn());
+    }
+
+    return this.systemTraceTracer.span(
+      {
+        operationKey,
+        data,
+        metadata: {
+          tags: ['runtime-scaffold', 'descriptor'],
+        },
+      },
+      fn,
+    );
+  }
+
+  private async traceResult<T extends { readonly ok: boolean }>(
+    operationKey: string,
+    data: JsonObject,
+    fn: () => T | Promise<T>,
+  ): Promise<T> {
+    if (!this.systemTraceTracer) {
+      return fn();
+    }
+
+    try {
+      return await this.systemTraceTracer.span(
+        {
+          operationKey,
+          data,
+          metadata: {
+            tags: ['runtime-scaffold', 'descriptor'],
+          },
+        },
+        async () => {
+          const result = await fn();
+          if (!result.ok) {
+            throw new RuntimeScaffoldTraceResultFailure(result as { readonly ok: false; readonly error?: unknown });
+          }
+          return result;
+        },
+      );
+    } catch (error) {
+      if (error instanceof RuntimeScaffoldTraceResultFailure) {
+        return error.result as T;
+      }
+      throw error;
+    }
+  }
+}
+
+class RuntimeScaffoldTraceResultFailure extends Error {
+  constructor(readonly result: { readonly ok: false; readonly error?: unknown }) {
+    super(getTraceFailureMessage(result));
+    this.name = 'RuntimeScaffoldTraceResultFailure';
+  }
+}
+
+function getTraceFailureMessage(result: { readonly ok: false; readonly error?: unknown }): string {
+  const error = result.error;
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'RuntimeScaffold traced phase returned a failure result';
 }
 
 type JsonReadResult =

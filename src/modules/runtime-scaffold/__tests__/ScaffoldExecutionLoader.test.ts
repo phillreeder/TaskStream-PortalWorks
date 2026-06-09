@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { ModuleLink } from '../../ModuleLink/index.js';
+import { SystemTraceRecorder } from '../../SystemTrace/index.js';
+import type { SystemTraceAdapter, SystemTraceRecord } from '../../SystemTrace/index.js';
 import { ScaffoldExecutionLoader } from '../ScaffoldExecutionLoader.js';
 import type { RuntimeScaffoldFileSystem } from '../types.js';
 
@@ -12,6 +15,16 @@ class FixtureFileSystem implements RuntimeScaffoldFileSystem {
     }
     return contents;
   }
+}
+
+class MemoryTraceAdapter implements SystemTraceAdapter {
+  readonly records: SystemTraceRecord[] = [];
+
+  async append(record: SystemTraceRecord): Promise<void> {
+    this.records.push(record);
+  }
+
+  async flush(): Promise<void> {}
 }
 
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
@@ -48,6 +61,41 @@ const loadFixture = (files: Record<string, string>, controlPath = '/scaffold/con
   return new ScaffoldExecutionLoader({
     fileSystem: new FixtureFileSystem(new Map(Object.entries(files))),
   }).loadFromControlFile(controlPath);
+};
+
+const tracedLoader = (files: Record<string, string>) => {
+  const adapter = new MemoryTraceAdapter();
+  const moduleLink = new ModuleLink({
+    systemTraceRecorder: new SystemTraceRecorder({ adapter }),
+  });
+  const tracer = moduleLink.systemTrace.createTracer({
+    source: {
+      relativePath: 'src/modules/runtime-scaffold/ScaffoldExecutionLoader.ts',
+      module: 'runtime-scaffold',
+      className: 'ScaffoldExecutionLoader',
+      method: 'loadFromControlFile',
+    },
+    topic: 'RuntimeScaffold',
+    area: 'loader',
+    rubric: 'descriptor-loading',
+    tags: ['runtime-scaffold'],
+    presets: {
+      'descriptor-control-read': { operation: 'descriptor-control-read' },
+      'descriptor-control-normalize': { operation: 'descriptor-control-normalize' },
+      'descriptor-execution-path-resolve': { operation: 'descriptor-execution-path-resolve' },
+      'descriptor-format-detect': { operation: 'descriptor-format-detect' },
+      'descriptor-file-read': { operation: 'descriptor-file-read' },
+      'descriptor-normalize': { operation: 'descriptor-normalize' },
+    },
+  });
+
+  return {
+    adapter,
+    loader: new ScaffoldExecutionLoader({
+      fileSystem: new FixtureFileSystem(new Map(Object.entries(files))),
+      systemTraceTracer: tracer,
+    }),
+  };
 };
 
 describe('ScaffoldExecutionLoader', () => {
@@ -258,5 +306,71 @@ describe('ScaffoldExecutionLoader', () => {
       throw new Error('Expected escaped execution path to fail');
     }
     expect(result.error.code).toBe('EXECUTION_PATH_INVALID');
+  });
+
+  it('emits SystemTrace spans through ModuleLink for descriptor loading and normalization', async () => {
+    const { adapter, loader } = tracedLoader({
+      '/scaffold/control.json': json({ activeExecutionFile: './executions/flow-only.json' }),
+      '/scaffold/executions/flow-only.json': json(validBaseDescriptor),
+    });
+
+    const result = await loader.loadFromControlFile('/scaffold/control.json');
+
+    expect(result.ok).toBe(true);
+    const spanRecords = adapter.records.filter((record) => record.family === 'span');
+    expect(spanRecords.some((record) => record.operation === 'descriptor-file-read' && record.phase === 'START')).toBe(true);
+    expect(spanRecords.some((record) => record.operation === 'descriptor-normalize' && record.phase === 'END')).toBe(true);
+    const descriptorLoadStart = spanRecords.find((record) => record.operation === 'descriptor-file-read' && record.phase === 'START');
+    const descriptorLoadEnd = spanRecords.find((record) => record.operation === 'descriptor-file-read' && record.phase === 'END');
+    expect(descriptorLoadStart?.traceId).toBe(descriptorLoadEnd?.traceId);
+    expect(descriptorLoadStart?.spanId).toBe(descriptorLoadEnd?.spanId);
+  });
+
+  it('records RuntimeScaffold source identity and operation classification in trace spans', async () => {
+    const { adapter, loader } = tracedLoader({
+      '/scaffold/control.json': json({ activeExecutionFile: './executions/flow-only.json' }),
+      '/scaffold/executions/flow-only.json': json(validBaseDescriptor),
+    });
+
+    await loader.loadFromControlFile('/scaffold/control.json');
+
+    const endRecord = adapter.records.find((record) => record.operation === 'descriptor-normalize' && record.phase === 'END');
+    expect(endRecord).toMatchObject({
+      source: {
+        relativePath: 'src/modules/runtime-scaffold/ScaffoldExecutionLoader.ts',
+        module: 'runtime-scaffold',
+        className: 'ScaffoldExecutionLoader',
+        method: 'loadFromControlFile',
+      },
+      topic: 'RuntimeScaffold',
+      area: 'loader',
+      rubric: 'descriptor-loading',
+    });
+    expect(endRecord?.tags).toEqual(expect.arrayContaining(['runtime-scaffold', 'descriptor']));
+    expect(Array.isArray(endRecord?.tags)).toBe(true);
+  });
+
+  it('closes RuntimeScaffold traced failure paths with END error status while preserving failure results', async () => {
+    const { adapter, loader } = tracedLoader({
+      '/scaffold/control.json': json({ activeExecutionFile: './bad.json' }),
+      '/scaffold/bad.json': json({
+        ...validBaseDescriptor,
+        id: undefined,
+        runId: undefined,
+      }),
+    });
+
+    const result = await loader.loadFromControlFile('/scaffold/control.json');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('Expected descriptor loading to fail');
+    }
+    expect(result.error.code).toBe('DESCRIPTOR_INVALID');
+    expect(adapter.records.at(-1)).toMatchObject({
+      operation: 'descriptor-normalize',
+      phase: 'END',
+      status: 'error',
+    });
   });
 });

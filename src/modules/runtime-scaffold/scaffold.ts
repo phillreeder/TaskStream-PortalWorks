@@ -1,6 +1,15 @@
 import { RuntimeScaffold } from './RuntimeScaffold.js';
-import type { RuntimeScaffoldLoadResult } from './types.js';
+import type { RuntimeScaffoldLoadResult, RuntimeScaffoldSystemTraceTracer } from './types.js';
 
-export async function loadRuntimeScaffoldFromControlFile(controlPath: string): Promise<RuntimeScaffoldLoadResult> {
-  return new RuntimeScaffold().loadFromControlFile(controlPath);
+export interface LoadRuntimeScaffoldFromControlFileOptions {
+  readonly systemTraceTracer?: RuntimeScaffoldSystemTraceTracer;
+}
+
+export async function loadRuntimeScaffoldFromControlFile(
+  controlPath: string,
+  options: LoadRuntimeScaffoldFromControlFileOptions = {},
+): Promise<RuntimeScaffoldLoadResult> {
+  return new RuntimeScaffold({
+    systemTraceTracer: options.systemTraceTracer,
+  }).loadFromControlFile(controlPath);
 }
