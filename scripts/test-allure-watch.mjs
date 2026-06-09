@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, watch as watchDir, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, watch as watchDir, writeFileSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   emitHarnessAllureEvidence,
   loadHarnessManifest,
@@ -21,12 +21,14 @@ const debounceMs = Number(process.env.ALLURE_WATCH_DEBOUNCE_MS ?? '750');
 const resultsDir = resolvePath(process.env.ALLURE_RESULTS_DIR ?? 'allure-results');
 const reportDir = resolvePath(process.env.ALLURE_REPORT_DIR ?? 'allure-report');
 const coverageDir = resolvePath(process.env.VITEST_COVERAGE_DIR ?? 'coverage');
+const watchEvidenceDir = resolvePath(process.env.ALLURE_WATCH_EVIDENCE_DIR ?? 'test-results/allure-watch');
 const rawArgs = process.argv.slice(2);
 const helpRequested = rawArgs.includes('--help') || rawArgs.includes('-h');
 const skipDbSetup = rawArgs.includes('--no-db') || rawArgs.includes('--skip-db') || rawArgs.includes('--db=false');
 const withCoverage = rawArgs.includes('--coverage') || process.env.ALLURE_WATCH_COVERAGE === '1';
 const includeHarness = !rawArgs.includes('--no-harness') && process.env.ALLURE_WATCH_HARNESS !== '0';
-const scriptFlags = ['--no-db', '--skip-db', '--db=false', '--help', '-h', '--coverage', '--no-harness'];
+const includeNodeTests = !rawArgs.includes('--no-node-tests') && process.env.ALLURE_WATCH_NODE_TESTS !== '0';
+const scriptFlags = ['--no-db', '--skip-db', '--db=false', '--help', '-h', '--coverage', '--no-harness', '--no-node-tests'];
 const vitestArgs = rawArgs.filter((arg) => !scriptFlags.includes(arg));
 const watchDirs = words(process.env.ALLURE_WATCH_DIRS ?? 'src tests packages prisma scripts');
 const watchFiles = words(process.env.ALLURE_WATCH_FILES ?? 'vitest.config.ts tsconfig.json package.json prisma.config.ts');
@@ -114,6 +116,7 @@ Examples:
   npm run test:allure:watch:no-db -- tests/harness
   npm run test:allure:watch -- --no-db src/modules/SystemTrace
   npm run test:allure:watch -- --no-harness src/modules/SystemTrace
+  npm run test:allure:watch -- --no-node-tests src/modules/SystemTrace
 
 Environment:
   ALLURE_WATCH_PORT=18080
@@ -122,6 +125,7 @@ Environment:
   ALLURE_WATCH_DEBOUNCE_MS=750
   ALLURE_WATCH_COVERAGE=1
   ALLURE_WATCH_HARNESS=0
+  ALLURE_WATCH_NODE_TESTS=0
   ALLURE_WATCH_HARNESS_SELECT="application:planner-smoke,module:runtime-scaffold-loader"
 `);
 }
@@ -160,6 +164,23 @@ function run(command, args, label) {
     throw new Error(`${label} failed with exit ${result.status ?? 1}`);
   }
   log(`${label} completed.`);
+}
+
+function runOptional(command, args, label, options = {}) {
+  log(`Starting ${label}.`);
+  const result = spawnSync(command, args, {
+    cwd: projectRoot,
+    stdio: options.capture ? 'pipe' : 'inherit',
+    encoding: options.capture ? 'utf8' : undefined,
+    env,
+    shell: process.platform === 'win32',
+  });
+  if (result.status !== 0) {
+    warn(`${label} failed with exit ${result.status ?? 1}; continuing so Allure can show available evidence.`);
+  } else {
+    log(`${label} completed.`);
+  }
+  return result;
 }
 
 function injectAutoRefresh() {
@@ -213,8 +234,25 @@ function runAllureCycle(reason, changedPaths) {
       prepareWritableDir(coverageDir, 'coverage');
       mkdirSync(path.join(coverageDir, '.tmp'), { recursive: true });
     }
+    prepareWritableDir(watchEvidenceDir, 'allure-watch-evidence');
     prepareWritableDir(reportDir, 'allure-report');
-    run('npx', ['vitest', 'run', ...(withCoverage ? ['--coverage'] : []), ...vitestArgs], 'vitest');
+    const vitestJsonPath = path.join(watchEvidenceDir, 'vitest-results.json');
+    runOptional(
+      'npx',
+      [
+        'vitest',
+        'run',
+        ...(withCoverage ? ['--coverage'] : []),
+        '--reporter=json',
+        `--outputFile=${vitestJsonPath}`,
+        ...vitestArgs,
+      ],
+      'vitest',
+    );
+    emitVitestAllureResults(vitestJsonPath);
+    if (includeNodeTests) {
+      emitNodeTestAllureResults();
+    }
     if (includeHarness) {
       emitHarnessAllureResults();
     }
@@ -226,6 +264,191 @@ function runAllureCycle(reason, changedPaths) {
   } finally {
     runnerActive = false;
   }
+}
+
+function emitVitestAllureResults(vitestJsonPath) {
+  if (!existsSync(vitestJsonPath)) {
+    warn(`Vitest JSON result file was not produced: ${vitestJsonPath}`);
+    return;
+  }
+
+  const report = JSON.parse(readFileSync(vitestJsonPath, 'utf8'));
+  const attachmentSource = `${randomUUID()}-attachment.json`;
+  writeFileSync(path.join(resultsDir, attachmentSource), JSON.stringify(report, null, 2));
+
+  let emitted = 0;
+  for (const fileResult of report.testResults ?? []) {
+    const filePath = fileResult.name ?? 'unknown-vitest-file';
+    const suiteName = `Vitest / ${path.dirname(path.relative(projectRoot, filePath))}`;
+    for (const assertion of fileResult.assertionResults ?? []) {
+      const name = assertion.fullName?.trim() || assertion.title || 'unnamed vitest test';
+      const status = mapVitestStatus(assertion.status);
+      const failureMessages = assertion.failureMessages ?? [];
+      writeAllureResult({
+        name,
+        fullName: `vitest :: ${path.relative(projectRoot, filePath)} :: ${name}`,
+        status,
+        statusDetails: failureMessages.length > 0
+          ? { message: failureMessages[0], trace: failureMessages.join('\n\n') }
+          : undefined,
+        suiteName,
+        containerName: `TaskStream / ${suiteName}`,
+        labels: [
+          { name: 'ownerType', value: 'Test Runner' },
+          { name: 'owner', value: 'Vitest' },
+          { name: 'testConcern', value: 'Vitest Test Execution' },
+          { name: 'package', value: path.relative(projectRoot, filePath) },
+        ],
+        attachments: [
+          { name: 'vitest-results.json', source: attachmentSource, type: 'application/json' },
+        ],
+        duration: assertion.duration ?? 0,
+      });
+      emitted += 1;
+    }
+  }
+  log(`Vitest Allure evidence emitted (${emitted} tests).`);
+}
+
+function mapVitestStatus(status) {
+  if (status === 'passed') return 'passed';
+  if (status === 'failed') return 'failed';
+  if (status === 'pending' || status === 'skipped' || status === 'todo') return 'skipped';
+  return 'unknown';
+}
+
+function emitNodeTestAllureResults() {
+  const files = collectNodeTestFiles(path.join(projectRoot, 'tests'));
+  if (files.length === 0) {
+    return;
+  }
+
+  log(`Running node:test files (${files.length}).`);
+  const result = runOptional('node', ['--test', ...files.map((file) => path.relative(projectRoot, file))], 'node:test', {
+    capture: true,
+  });
+  const output = [result.stdout, result.stderr].filter(Boolean).join('\n');
+  mkdirSync(resultsDir, { recursive: true });
+  const attachmentSource = `${randomUUID()}-attachment.log`;
+  writeFileSync(path.join(resultsDir, attachmentSource), output);
+
+  const parsed = parseNodeTestOutput(output);
+  const tests = parsed.length > 0
+    ? parsed
+    : [{
+        name: 'node:test execution',
+        status: result.status === 0 ? 'passed' : 'failed',
+        duration: 0,
+        message: result.status === 0 ? undefined : 'node:test failed before individual test output was parsed',
+      }];
+
+  for (const test of tests) {
+    writeAllureResult({
+      name: test.name,
+      fullName: `node:test :: ${test.name}`,
+      status: test.status,
+      statusDetails: test.message ? { message: test.message } : undefined,
+      suiteName: 'Infrastructure / Node Test Runner',
+      containerName: 'TaskStream / Infrastructure / Node Test Runner',
+      labels: [
+        { name: 'ownerType', value: 'Infrastructure' },
+        { name: 'owner', value: 'node:test' },
+        { name: 'testConcern', value: 'Node Test Execution' },
+      ],
+      attachments: [
+        { name: 'node-test.log', source: attachmentSource, type: 'text/plain' },
+      ],
+      duration: test.duration,
+    });
+  }
+  log(`node:test Allure evidence emitted (${tests.length} entries).`);
+}
+
+function collectNodeTestFiles(root) {
+  if (!existsSync(root)) {
+    return [];
+  }
+  const entries = readdirSyncSafe(root);
+  return entries.flatMap((entry) => {
+    const target = path.join(root, entry.name);
+    if (shouldIgnore(target)) {
+      return [];
+    }
+    if (entry.isDirectory()) {
+      return collectNodeTestFiles(target);
+    }
+    return entry.isFile() && target.endsWith('.test.mjs') ? [target] : [];
+  }).sort();
+}
+
+function readdirSyncSafe(dir) {
+  try {
+    return statSync(dir).isDirectory() ? readdirSync(dir, { withFileTypes: true }) : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseNodeTestOutput(output) {
+  return output
+    .split(/\r?\n/u)
+    .map((line) => line.match(/^\s*([✔✖])\s(.+?)(?:\s\(([\d.]+)ms\))?$/u))
+    .filter(Boolean)
+    .map((match) => ({
+      name: match[2],
+      status: match[1] === '✔' ? 'passed' : 'failed',
+      duration: Number(match[3] ?? '0'),
+      message: match[1] === '✔' ? undefined : match[2],
+    }));
+}
+
+function writeAllureResult({
+  name,
+  fullName,
+  status,
+  statusDetails,
+  suiteName,
+  containerName,
+  labels,
+  attachments,
+  duration = 0,
+}) {
+  const testUuid = randomUUID();
+  const containerUuid = randomUUID();
+  const start = Date.now();
+  const stop = start + Math.max(0, Math.round(duration));
+  const resultPayload = {
+    uuid: testUuid,
+    historyId: createHash('md5').update(fullName).digest('hex'),
+    name,
+    fullName,
+    status,
+    stage: 'finished',
+    statusDetails,
+    steps: [],
+    attachments,
+    parameters: [],
+    labels: [
+      { name: 'language', value: 'JavaScript' },
+      { name: 'framework', value: 'node:test' },
+      { name: 'parentSuite', value: 'TaskStream' },
+      { name: 'suite', value: suiteName },
+      ...labels,
+    ],
+    start,
+    stop,
+  };
+  const containerPayload = {
+    uuid: containerUuid,
+    name: containerName,
+    children: [testUuid],
+    befores: [],
+    afters: [],
+    start,
+    stop,
+  };
+  writeFileSync(path.join(resultsDir, `${testUuid}-result.json`), JSON.stringify(resultPayload, null, 2));
+  writeFileSync(path.join(resultsDir, `${containerUuid}-container.json`), JSON.stringify(containerPayload, null, 2));
 }
 
 function emitHarnessAllureResults() {
