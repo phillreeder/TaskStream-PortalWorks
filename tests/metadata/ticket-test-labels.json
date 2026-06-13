@@ -1,0 +1,409 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "file": "tests/smoke/placeholder.test.ts",
+      "labels": {
+        "verificationSet": "test-platform-v1",
+        "tickets": ["T003"],
+        "requirements": [],
+        "ownerType": "infrastructure",
+        "owner": "Test Harness",
+        "testConcern": "vitest-wiring"
+      }
+    },
+    {
+      "file": "src/definitionRuntime/state/__tests__/defineState.test.ts",
+      "labels": {
+        "verificationSet": "state-runtime-v1",
+        "tickets": ["T004"],
+        "requirements": [],
+        "ownerType": "module",
+        "owner": "State Definition Runtime",
+        "testConcern": "state-definition"
+      }
+    },
+    {
+      "file": "src/definitionRuntime/state/__tests__/validateChanges.test.ts",
+      "labels": {
+        "verificationSet": "state-runtime-v1",
+        "tickets": ["T005"],
+        "requirements": [],
+        "ownerType": "module",
+        "owner": "State Definition Runtime",
+        "testConcern": "change-validation"
+      }
+    },
+    {
+      "file": "src/definitionRuntime/state/__tests__/validateAndApply.test.ts",
+      "labels": {
+        "verificationSet": "state-runtime-v1",
+        "tickets": ["T006", "T009"],
+        "requirements": [],
+        "ownerType": "module",
+        "owner": "State Definition Runtime",
+        "testConcern": "state-application-validation"
+      }
+    },
+    {
+      "file": "src/definitionRuntime/state/__tests__/comparison.test.ts",
+      "labels": {
+        "verificationSet": "state-runtime-v1",
+        "tickets": ["T007"],
+        "requirements": [],
+        "ownerType": "module",
+        "owner": "State Definition Runtime",
+        "testConcern": "state-comparison"
+      }
+    },
+    {
+      "file": "src/definitionRuntime/state/__tests__/stateContainer.test.ts",
+      "labels": {
+        "verificationSet": "state-runtime-v1",
+        "tickets": ["T011"],
+        "requirements": [],
+        "ownerType": "module",
+        "owner": "StateContainer",
+        "testConcern": "state-container"
+      }
+    },
+    {
+      "file": "src/definitionRuntime/state/__tests__/stateFacades.test.ts",
+      "labels": {
+        "verificationSet": "state-runtime-v1",
+        "tickets": ["T012"],
+        "requirements": [],
+        "ownerType": "module",
+        "owner": "StateContainer",
+        "testConcern": "state-reader-writer-facades"
+      }
+    },
+    {
+      "file": "src/modules/SystemTrace/__tests__/SystemTraceRecorder.test.ts",
+      "labels": {
+        "verificationSet": "systemtrace-core-v1",
+        "tickets": ["SYST-003"],
+        "requirements": [
+          "REQ-SYST-001",
+          "REQ-SYST-002",
+          "REQ-SYST-003",
+          "REQ-SYST-004",
+          "REQ-SYST-010",
+          "REQ-SYST-012",
+          "REQ-SYST-013",
+          "REQ-SYST-014",
+          "REQ-SYST-024",
+          "REQ-SYST-025",
+          "REQ-SYST-026",
+          "REQ-SYST-027",
+          "REQ-SYST-028",
+          "REQ-SYST-029",
+          "REQ-SYST-030",
+          "REQ-SYST-031",
+          "REQ-SYST-033"
+        ],
+        "ownerType": "module",
+        "owner": "SystemTrace",
+        "testConcern": "trace-capture"
+      }
+    },
+    {
+      "file": "src/modules/SystemTrace/__tests__/SystemTraceRecorder.test.ts",
+      "testName": "supports bound tracer presets and records tags as arrays",
+      "labels": {
+        "verificationSet": "systemtrace-wireup",
+        "tickets": ["MODLINK-SYST-001"],
+        "requirements": ["REQ-SYST-032", "REQ-ML-013"],
+        "ownerType": "module",
+        "owner": "SystemTrace",
+        "testConcern": "bound-tracer"
+      }
+    },
+    {
+      "file": "src/modules/ModuleLink/__tests__/ModuleLinkCore.test.ts",
+      "labels": {
+        "verificationSet": "modulelink-core-v1",
+        "tickets": ["MODLINK-002"],
+        "requirements": [
+          "REQ-ML-001",
+          "REQ-ML-002",
+          "REQ-ML-003",
+          "REQ-ML-007",
+          "REQ-ML-008",
+          "REQ-ML-009",
+          "REQ-ML-010",
+          "REQ-ML-011"
+        ],
+        "ownerType": "module",
+        "owner": "ModuleLink",
+        "testConcern": "modulelink-core"
+      }
+    },
+    {
+      "file": "src/modules/ModuleLink/__tests__/SystemTraceFacade.test.ts",
+      "labels": {
+        "verificationSet": "systemtrace-wireup",
+        "tickets": ["MODLINK-SYST-001"],
+        "requirements": [
+          "REQ-ML-004",
+          "REQ-ML-005",
+          "REQ-ML-006",
+          "REQ-ML-010",
+          "REQ-ML-011",
+          "REQ-ML-012",
+          "REQ-ML-013",
+          "REQ-ML-014",
+          "REQ-SYST-024",
+          "REQ-SYST-032",
+          "REQ-SYST-033"
+        ],
+        "ownerType": "module",
+        "owner": "ModuleLink",
+        "testConcern": "systemtrace-facade"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
+      "labels": {
+        "verificationSet": "runtime-spine-v1",
+        "tickets": ["RS-001"],
+        "requirements": [
+          "REQ-RSC-001",
+          "REQ-RSC-023",
+          "REQ-RSC-024",
+          "REQ-RSC-025",
+          "REQ-RSC-027",
+          "REQ-RSC-028",
+          "REQ-RSC-041",
+          "REQ-RSC-042",
+          "REQ-RSC-043",
+          "REQ-RSC-044"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "descriptor-loading"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
+      "testName": "normalizes channelFlow descriptors without resolving Channel, STO, or Flow semantics",
+      "labels": {
+        "verificationSet": "runtime-spine-v1",
+        "tickets": ["RS-001"],
+        "requirements": ["REQ-RSC-001", "REQ-RSC-028", "REQ-RSC-043"],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "descriptor-loading",
+        "runtimeSlice": "channelFlow"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
+      "testName": "emits SystemTrace spans through ModuleLink for descriptor loading and normalization",
+      "labels": {
+        "verificationSet": "systemtrace-wireup",
+        "tickets": ["SYST-WIRE-001"],
+        "requirements": ["REQ-SYST-024", "REQ-SYST-025", "REQ-SYST-030", "REQ-ML-012"],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "trace-emission",
+        "runtimeSlice": "flowOnly"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
+      "testName": "records RuntimeScaffold source identity and operation classification in trace spans",
+      "labels": {
+        "verificationSet": "systemtrace-wireup",
+        "tickets": ["SYST-WIRE-001"],
+        "requirements": ["REQ-SYST-029", "REQ-SYST-030", "REQ-SYST-031", "REQ-ML-013"],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "trace-classification",
+        "runtimeSlice": "flowOnly"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
+      "testName": "closes RuntimeScaffold traced failure paths with END error status while preserving failure results",
+      "labels": {
+        "verificationSet": "systemtrace-wireup",
+        "tickets": ["SYST-WIRE-001"],
+        "requirements": ["REQ-SYST-027", "REQ-ML-014"],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "failed-span-closure",
+        "runtimeSlice": "flowOnly"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
+      "testName": "runtime-scaffold uses shared trace event catalog names",
+      "labels": {
+        "verificationSet": "order-proof",
+        "tickets": ["SYST-EVENTS-001"],
+        "requirements": ["REQ-SYST-034", "REQ-SYST-035", "REQ-RSC-057"],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "trace-event-catalog",
+        "runtimeSlice": "flowOnly"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
+      "testName": "TaskStream / RuntimeScaffold / SystemTrace Order Proof proves descriptor trace order by seq",
+      "labels": {
+        "verificationSet": "order-proof",
+        "tickets": ["SYST-EVENTS-001"],
+        "requirements": ["REQ-SYST-040", "REQ-SYST-041", "REQ-RSC-058", "REQ-RSC-059"],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "order-proof",
+        "runtimeSlice": "flowOnly"
+      }
+    },
+    {
+      "file": "src/trace-events/__tests__/traceEventCatalog.test.ts",
+      "labels": {
+        "verificationSet": "order-proof",
+        "tickets": ["SYST-EVENTS-001"],
+        "requirements": [
+          "REQ-SYST-034",
+          "REQ-SYST-035",
+          "REQ-SYST-036",
+          "REQ-SYST-037",
+          "REQ-SYST-038",
+          "REQ-SYST-039",
+          "REQ-SYST-040",
+          "REQ-SYST-041",
+          "REQ-RSC-057",
+          "REQ-RSC-058",
+          "REQ-RSC-059"
+        ],
+        "ownerType": "module",
+        "owner": "SystemTrace",
+        "testConcern": "trace-event-catalog"
+      }
+    },
+    {
+      "file": "tests/harness/harness.test.mjs",
+      "labels": {
+        "verificationSet": "test-platform-v1",
+        "tickets": ["INFRA-TEST-001"],
+        "requirements": [
+          "REQ-INFRA-TEST-HARNESS-001",
+          "REQ-INFRA-TEST-HARNESS-002",
+          "REQ-INFRA-TEST-HARNESS-003",
+          "REQ-INFRA-TEST-HARNESS-004",
+          "REQ-INFRA-TEST-HARNESS-005",
+          "REQ-INFRA-TEST-HARNESS-006",
+          "REQ-INFRA-TEST-HARNESS-007",
+          "REQ-INFRA-TEST-HARNESS-008",
+          "REQ-INFRA-TEST-HARNESS-009",
+          "REQ-INFRA-TEST-HARNESS-010",
+          "REQ-INFRA-TEST-HARNESS-011",
+          "REQ-INFRA-TEST-HARNESS-012",
+          "REQ-INFRA-TEST-HARNESS-013",
+          "REQ-INFRA-TEST-HARNESS-014",
+          "REQ-INFRA-TEST-HARNESS-015",
+          "REQ-INFRA-TEST-HARNESS-016",
+          "REQ-INFRA-TEST-HARNESS-017",
+          "REQ-INFRA-TEST-HARNESS-018",
+          "REQ-INFRA-TEST-HARNESS-019",
+          "REQ-INFRA-TEST-HARNESS-020"
+        ],
+        "ownerType": "infrastructure",
+        "owner": "Test Harness",
+        "testConcern": "harness-routing"
+      }
+    },
+    {
+      "file": "tests/harness/harness.test.mjs",
+      "testName": "harness verifies systemtrace output exists and parses valid json records",
+      "labels": {
+        "verificationSet": "systemtrace-wireup",
+        "tickets": ["SYST-HARNESS-001"],
+        "requirements": ["REQ-SYST-011", "REQ-SYST-012"],
+        "ownerType": "module",
+        "owner": "SystemTrace",
+        "testConcern": "systemtrace-output-verification"
+      }
+    },
+    {
+      "file": "tests/harness/harness.test.mjs",
+      "testName": "harness verifies systemtrace sequence start-end duration and failed span closure",
+      "labels": {
+        "verificationSet": "systemtrace-wireup",
+        "tickets": ["SYST-HARNESS-001"],
+        "requirements": ["REQ-SYST-024", "REQ-SYST-025", "REQ-SYST-026", "REQ-SYST-027"],
+        "ownerType": "module",
+        "owner": "SystemTrace",
+        "testConcern": "systemtrace-span-verification"
+      }
+    },
+    {
+      "file": "tests/harness/harness.test.mjs",
+      "testName": "harness fails clearly when expected systemtrace output is missing or malformed",
+      "labels": {
+        "verificationSet": "systemtrace-wireup",
+        "tickets": ["SYST-HARNESS-001"],
+        "requirements": ["REQ-SYST-011", "REQ-SYST-012"],
+        "ownerType": "module",
+        "owner": "SystemTrace",
+        "testConcern": "systemtrace-output-verification"
+      }
+    },
+    {
+      "file": "tests/harness/harness-allure.test.mjs",
+      "labels": {
+        "verificationSet": "all-output-visible",
+        "tickets": ["INFRA-TEST-002", "ALLURE-OUTPUT-001"],
+        "requirements": [
+          "REQ-INFRA-TEST-ALLURE-001",
+          "REQ-INFRA-TEST-ALLURE-002",
+          "REQ-INFRA-TEST-ALLURE-003",
+          "REQ-INFRA-TEST-ALLURE-004",
+          "REQ-INFRA-TEST-ALLURE-005",
+          "REQ-INFRA-TEST-ALLURE-006",
+          "REQ-INFRA-TEST-ALLURE-007",
+          "REQ-INFRA-TEST-ALLURE-008",
+          "REQ-INFRA-TEST-ALLURE-009",
+          "REQ-INFRA-TEST-ALLURE-010",
+          "REQ-INFRA-TEST-ALLURE-011",
+          "REQ-INFRA-TEST-ALLURE-012",
+          "REQ-INFRA-TEST-ALLURE-013",
+          "REQ-INFRA-TEST-ALLURE-014",
+          "REQ-INFRA-TEST-ALLURE-015",
+          "REQ-INFRA-TEST-ALLURE-016",
+          "REQ-INFRA-OBS-ALLURE-001",
+          "REQ-INFRA-OBS-ALLURE-002",
+          "REQ-INFRA-OBS-ALLURE-003",
+          "REQ-INFRA-OBS-ALLURE-004",
+          "REQ-INFRA-OBS-ALLURE-005",
+          "REQ-INFRA-OBS-ALLURE-006"
+        ],
+        "ownerType": "infrastructure",
+        "owner": "Test Harness",
+        "testConcern": "allure-output"
+      }
+    }
+  ],
+  "documentedTicketsWithoutExistingTests": [
+    {
+      "ticket": "TNP-001",
+      "reason": "Ticket status is pending and no current App test file implements TenantProcess Channel fixture coverage."
+    },
+    {
+      "ticket": "T008",
+      "reason": "Ticket log records completion, but no current StateSession test file exists in this checkout."
+    },
+    {
+      "ticket": "T010",
+      "reason": "Ticket log records completion, but no current StateSession commit test file exists in this checkout."
+    },
+    {
+      "ticket": "T013",
+      "reason": "Ticket log records completion, but no current LogicRuntime test file exists in this checkout."
+    }
+  ]
+}

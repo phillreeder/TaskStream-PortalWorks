@@ -13,6 +13,7 @@ import {
   parseSelectorOption,
   runHarness,
 } from '../tests/harness/harness.mjs';
+import { metadataLabelsForTest } from '../tests/metadata/ticketLabels.mjs';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.ALLURE_WATCH_PORT ?? process.env.HARNESS_REPORT_PORT ?? '18080');
@@ -284,9 +285,15 @@ function emitVitestAllureResults(vitestJsonPath) {
       const name = assertion.fullName?.trim() || assertion.title || 'unnamed vitest test';
       const status = mapVitestStatus(assertion.status);
       const failureMessages = assertion.failureMessages ?? [];
+      const relativeFile = path.relative(projectRoot, filePath);
+      const ticketLabels = metadataLabelsForTest({
+        filePath: relativeFile,
+        testName: assertion.title || name.split(/\s›\s/u).at(-1) || name,
+        suiteName: name.includes(' › ') ? name.split(/\s›\s/u).slice(0, -1).join(' › ') : suiteName,
+      });
       writeAllureResult({
         name,
-        fullName: `vitest :: ${path.relative(projectRoot, filePath)} :: ${name}`,
+        fullName: `vitest :: ${relativeFile} :: ${name}`,
         status,
         statusDetails: failureMessages.length > 0
           ? { message: failureMessages[0], trace: failureMessages.join('\n\n') }
@@ -294,10 +301,16 @@ function emitVitestAllureResults(vitestJsonPath) {
         suiteName,
         containerName: `TaskStream / ${suiteName}`,
         labels: [
-          { name: 'ownerType', value: 'Test Runner' },
-          { name: 'owner', value: 'Vitest' },
-          { name: 'testConcern', value: 'Vitest Test Execution' },
-          { name: 'package', value: path.relative(projectRoot, filePath) },
+          ...(ticketLabels.length > 0
+            ? ticketLabels
+            : [
+                { name: 'verificationSet', value: 'all-output-visible' },
+                { name: 'ticket', value: 'ALLURE-OUTPUT-001' },
+                { name: 'ownerType', value: 'infrastructure' },
+                { name: 'owner', value: 'Vitest' },
+                { name: 'testConcern', value: 'vitest-test-execution' },
+              ]),
+          { name: 'package', value: relativeFile },
         ],
         attachments: [
           { name: 'vitest-results.json', source: attachmentSource, type: 'application/json' },
@@ -343,6 +356,7 @@ function emitNodeTestAllureResults() {
       }];
 
   for (const test of tests) {
+    const ticketLabels = nodeTestMetadataLabels(test.name);
     writeAllureResult({
       name: test.name,
       fullName: `node:test :: ${test.name}`,
@@ -351,9 +365,15 @@ function emitNodeTestAllureResults() {
       suiteName: 'Infrastructure / Node Test Runner',
       containerName: 'TaskStream / Infrastructure / Node Test Runner',
       labels: [
-        { name: 'ownerType', value: 'Infrastructure' },
-        { name: 'owner', value: 'node:test' },
-        { name: 'testConcern', value: 'Node Test Execution' },
+        ...(ticketLabels.length > 0
+          ? ticketLabels
+          : [
+              { name: 'verificationSet', value: 'all-output-visible' },
+              { name: 'ticket', value: 'ALLURE-OUTPUT-001' },
+              { name: 'ownerType', value: 'infrastructure' },
+              { name: 'owner', value: 'node:test' },
+              { name: 'testConcern', value: 'node-test-execution' },
+            ]),
       ],
       attachments: [
         { name: 'node-test.log', source: attachmentSource, type: 'text/plain' },
@@ -362,6 +382,25 @@ function emitNodeTestAllureResults() {
     });
   }
   log(`node:test Allure evidence emitted (${tests.length} entries).`);
+}
+
+function nodeTestMetadataLabels(testName) {
+  return dedupeLabels([
+    ...metadataLabelsForTest({ filePath: 'tests/harness/harness.test.mjs', testName }),
+    ...metadataLabelsForTest({ filePath: 'tests/harness/harness-allure.test.mjs', testName }),
+  ]);
+}
+
+function dedupeLabels(labels) {
+  const seen = new Set();
+  return labels.filter((label) => {
+    const key = `${label.name}:${label.value}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 function collectNodeTestFiles(root) {
@@ -417,23 +456,26 @@ function writeAllureResult({
   const containerUuid = randomUUID();
   const start = Date.now();
   const stop = start + Math.max(0, Math.round(duration));
+  const visibleName = withTicketSuffix(name, labels);
+  const visibleFullName = withTicketSuffix(fullName, labels);
+  const visibleLabels = dedupeLabels([...labels, ...metadataTagLabels(labels)]);
   const resultPayload = {
     uuid: testUuid,
     historyId: createHash('md5').update(fullName).digest('hex'),
-    name,
-    fullName,
+    name: visibleName,
+    fullName: visibleFullName,
     status,
     stage: 'finished',
     statusDetails,
     steps: [],
     attachments,
-    parameters: [],
+    parameters: metadataParameters(labels),
     labels: [
       { name: 'language', value: 'JavaScript' },
       { name: 'framework', value: 'node:test' },
       { name: 'parentSuite', value: 'TaskStream' },
       { name: 'suite', value: suiteName },
-      ...labels,
+      ...visibleLabels,
     ],
     start,
     stop,
@@ -449,6 +491,38 @@ function writeAllureResult({
   };
   writeFileSync(path.join(resultsDir, `${testUuid}-result.json`), JSON.stringify(resultPayload, null, 2));
   writeFileSync(path.join(resultsDir, `${containerUuid}-container.json`), JSON.stringify(containerPayload, null, 2));
+}
+
+function labelValues(labels, name) {
+  return labels.filter((label) => label.name === name).map((label) => label.value);
+}
+
+function withTicketSuffix(value, labels) {
+  const tickets = labelValues(labels, 'ticket');
+  if (tickets.length === 0) {
+    return value;
+  }
+  return `${value} [tickets: ${tickets.join(',')}]`;
+}
+
+function metadataParameters(labels) {
+  return labels
+    .filter((label) => ['verificationSet', 'ticket', 'requirement', 'ownerType', 'owner', 'testConcern', 'runtimeSlice'].includes(label.name))
+    .map((label) => ({ name: label.name, value: label.value }));
+}
+
+function metadataTagLabels(labels) {
+  return labels.flatMap((label) => {
+    if (!['verificationSet', 'ticket', 'requirement', 'testConcern', 'runtimeSlice'].includes(label.name)) {
+      return [];
+    }
+    return label.name === 'ticket'
+      ? [
+          { name: 'tag', value: label.value },
+          { name: 'tag', value: `ticket:${label.value}` },
+        ]
+      : [{ name: 'tag', value: `${label.name}:${label.value}` }];
+  });
 }
 
 function emitHarnessAllureResults() {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -69,7 +69,7 @@ test('emits allure result for harness selection plan', () => {
   try {
     runHarnessAllure({ mode: 'run', ...context, generateReport: false });
     const results = readAllureResults(context.allureResultsDir);
-    assert.ok(results.some((result) => result.name === 'Harness selection plan: passed'));
+    assert.ok(results.some((result) => result.name.startsWith('Harness selection plan: passed')));
   } finally {
     rmSync(context.root, { recursive: true, force: true });
   }
@@ -107,7 +107,7 @@ test('attaches harness selection log to allure evidence', async () => {
   const context = dirs();
   try {
     runHarnessAllure({ mode: 'run', ...context, generateReport: false });
-    const plan = readAllureResults(context.allureResultsDir).find((result) => result.name === 'Harness selection plan: passed');
+    const plan = readAllureResults(context.allureResultsDir).find((result) => result.name.startsWith('Harness selection plan: passed'));
     const attachment = plan.attachments.find((entry) => entry.name === 'selection.log');
     assert.ok(attachment);
     const attachedLog = await readFile(path.join(context.allureResultsDir, attachment.source), 'utf8');
@@ -121,7 +121,7 @@ test('attaches harness summary json to allure evidence', async () => {
   const context = dirs();
   try {
     runHarnessAllure({ mode: 'run', ...context, generateReport: false });
-    const plan = readAllureResults(context.allureResultsDir).find((result) => result.name === 'Harness selection plan: passed');
+    const plan = readAllureResults(context.allureResultsDir).find((result) => result.name.startsWith('Harness selection plan: passed'));
     const attachment = plan.attachments.find((entry) => entry.name === 'summary.json');
     assert.ok(attachment);
     const attachedSummary = JSON.parse(await readFile(path.join(context.allureResultsDir, attachment.source), 'utf8'));
@@ -219,11 +219,15 @@ test('allure groups output by owning section', () => {
     runHarnessAllure({ mode: 'run', ...context, generateReport: false });
     const results = readAllureResults(context.allureResultsDir);
     const labels = results.flatMap((result) => result.labels ?? []);
-    assert.ok(labels.some((label) => label.name === 'ownerType' && label.value === 'Infrastructure'));
-    assert.ok(labels.some((label) => label.name === 'ownerType' && label.value === 'Application Path'));
-    assert.ok(labels.some((label) => label.name === 'ownerType' && label.value === 'Module'));
-    assert.ok(labels.some((label) => label.name === 'testConcern' && label.value === 'Harness Selection Evidence'));
-    assert.ok(labels.some((label) => label.name === 'testConcern' && label.value === 'Harness Target Selection'));
+    assert.ok(labels.some((label) => label.name === 'ownerType' && label.value === 'infrastructure'));
+    assert.ok(labels.some((label) => label.name === 'ownerType' && label.value === 'applicationPath'));
+    assert.ok(labels.some((label) => label.name === 'ownerType' && label.value === 'module'));
+    assert.ok(labels.some((label) => label.name === 'testConcern' && label.value === 'harness-selection-evidence'));
+    assert.ok(labels.some((label) => label.name === 'testConcern' && label.value === 'harness-target-selection'));
+    assert.ok(labels.some((label) => label.name === 'verificationSet' && label.value === 'all-output-visible'));
+    assert.ok(labels.some((label) => label.name === 'ticket' && label.value === 'INFRA-TEST-001'));
+    assert.ok(labels.some((label) => label.name === 'ticket' && label.value === 'INFRA-TEST-002'));
+    assert.ok(labels.some((label) => label.name === 'ticket' && label.value === 'ALLURE-OUTPUT-001'));
     verifyHarnessAllureEvidence({
       evidenceDir: context.evidenceDir,
       resultsDir: context.allureResultsDir,
@@ -255,7 +259,7 @@ test('allure exposes raw evidence attachments', async () => {
       requireReport: false,
       requireSystemTrace: true,
     });
-    const systemTrace = results.find((result) => result.name === 'SystemTrace output: verified');
+    const systemTrace = results.find((result) => result.name.startsWith('SystemTrace output: verified'));
     const attachmentNames = new Set(systemTrace.attachments.map((attachment) => attachment.name));
     assert.deepEqual(
       [...attachmentNames].sort(),
@@ -291,12 +295,18 @@ test('fails allure output verification when required systemtrace evidence is mis
 
 test('tickets record allure evidence mapping', () => {
   const ticketRoot = path.resolve(projectRoot, '../docs/System/DocStream/Implementation/Tickets');
+  const implementationTickets = readdirSync(ticketRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(ticketRoot, entry.name, '00-ticket.md'))
+    .filter((ticketPath) => existsSync(ticketPath));
   const result = verifyTicketAllureEvidenceMapping({
     ticketPaths: [
       path.join(ticketRoot, '00-template.md'),
-      path.join(ticketRoot, 'ALLURE-OUTPUT-001-all-output-evidence-visible-in-allure/00-ticket.md'),
+      ...implementationTickets,
     ],
   });
 
-  assert.equal(result.checked, 2);
+  assert.equal(result.checked, implementationTickets.length + 1);
+  assert.ok(result.metadata.linkedTickets.includes('ALLURE-OUTPUT-001'));
+  assert.ok(result.metadata.linkedTickets.includes('SYST-EVENTS-001'));
 });

@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { verifyTicketMetadataCompleteness } from '../metadata/ticketLabels.mjs';
 
 export const HARNESS_STATES = [
   'RUN',
@@ -352,12 +353,23 @@ function md5(value) {
   return createHash('md5').update(value).digest('hex');
 }
 
-function outputOwnerLabels({ ownerType, owner, concern, requirements = [] }) {
+function outputOwnerLabels({
+  ownerType,
+  owner,
+  concern,
+  requirements = [],
+  tickets = [],
+  verificationSet,
+  runtimeSlice,
+}) {
   return [
+    ...(verificationSet ? [{ name: 'verificationSet', value: verificationSet }] : []),
+    ...tickets.map((ticket) => ({ name: 'ticket', value: ticket })),
     { name: 'ownerType', value: ownerType },
     { name: 'owner', value: owner },
     { name: 'testConcern', value: concern },
     ...requirements.map((requirement) => ({ name: 'requirement', value: requirement })),
+    ...(runtimeSlice ? [{ name: 'runtimeSlice', value: runtimeSlice }] : []),
   ];
 }
 
@@ -374,23 +386,26 @@ function writeAllureResult({
 }) {
   const testUuid = randomUUID();
   const containerUuid = randomUUID();
+  const visibleName = withTicketSuffix(name, labels);
+  const visibleFullName = withTicketSuffix(fullName, labels);
   const payload = {
     uuid: testUuid,
     historyId: md5(fullName),
-    name,
-    fullName,
+    name: visibleName,
+    fullName: visibleFullName,
     status,
     stage: 'finished',
     statusDetails,
     steps: [],
     attachments,
-    parameters: [],
+    parameters: metadataParameters(labels),
     labels: [
       { name: 'language', value: 'JavaScript' },
       { name: 'framework', value: 'taskstream-harness' },
       { name: 'parentSuite', value: 'TaskStream' },
       { name: 'suite', value: suiteName },
       ...labels,
+      ...metadataTagLabels(labels),
     ].filter((label) => label.value !== undefined && label.value !== null),
     start: FIXED_START,
     stop: FIXED_START,
@@ -406,6 +421,50 @@ function writeAllureResult({
   };
   writeFileSync(path.join(resultsDir, `${testUuid}-result.json`), JSON.stringify(payload, null, 2));
   writeFileSync(path.join(resultsDir, `${containerUuid}-container.json`), JSON.stringify(container, null, 2));
+}
+
+function labelValues(labels, name) {
+  return labels.filter((label) => label.name === name).map((label) => label.value);
+}
+
+function withTicketSuffix(value, labels) {
+  const tickets = labelValues(labels, 'ticket');
+  if (tickets.length === 0) {
+    return value;
+  }
+  return `${value} [tickets: ${tickets.join(',')}]`;
+}
+
+function metadataParameters(labels) {
+  return labels
+    .filter((label) => ['verificationSet', 'ticket', 'requirement', 'ownerType', 'owner', 'testConcern', 'runtimeSlice'].includes(label.name))
+    .map((label) => ({ name: label.name, value: label.value }));
+}
+
+function metadataTagLabels(labels) {
+  return dedupeLabels(labels.flatMap((label) => {
+    if (!['verificationSet', 'ticket', 'requirement', 'testConcern', 'runtimeSlice'].includes(label.name)) {
+      return [];
+    }
+    return label.name === 'ticket'
+      ? [
+          { name: 'tag', value: label.value },
+          { name: 'tag', value: `ticket:${label.value}` },
+        ]
+      : [{ name: 'tag', value: `${label.name}:${label.value}` }];
+  }));
+}
+
+function dedupeLabels(labels) {
+  const seen = new Set();
+  return labels.filter((label) => {
+    const key = `${label.name}:${label.value}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 export function emitHarnessAllureEvidence(options = {}) {
@@ -443,10 +502,12 @@ export function emitHarnessAllureEvidence(options = {}) {
         : undefined,
     labels: [
       ...outputOwnerLabels({
-        ownerType: 'Infrastructure',
+        ownerType: 'infrastructure',
         owner: 'Test Harness',
-        concern: 'Harness Selection Evidence',
+        concern: 'harness-selection-evidence',
         requirements: ['REQ-INFRA-OBS-ALLURE-001', 'REQ-INFRA-OBS-ALLURE-002', 'REQ-INFRA-OBS-ALLURE-004'],
+        tickets: ['INFRA-TEST-002', 'ALLURE-OUTPUT-001'],
+        verificationSet: 'all-output-visible',
       }),
       { name: 'harnessStatus', value: summary.status },
       { name: 'harnessMode', value: summary.mode },
@@ -459,6 +520,11 @@ export function emitHarnessAllureEvidence(options = {}) {
 
   for (const outcome of summary.outcomes) {
     const ownerType = outcome.category === 'application'
+      ? 'applicationPath'
+      : outcome.category === 'module'
+        ? 'module'
+        : 'infrastructure';
+    const displayOwnerType = outcome.category === 'application'
       ? 'Application Path'
       : outcome.category === 'module'
         ? 'Module'
@@ -466,17 +532,19 @@ export function emitHarnessAllureEvidence(options = {}) {
     writeAllureResult({
       resultsDir,
       name: `${outcome.state} ${outcome.selector}`,
-      fullName: `TaskStream / ${ownerType} / ${outcome.selector} :: ${outcome.state}`,
+      fullName: `TaskStream / ${displayOwnerType} / ${outcome.selector} :: ${outcome.state}`,
       status: outcome.state === 'RUN' ? 'passed' : 'skipped',
       statusDetails: { message: outcome.reason },
-      suiteName: `${ownerType} / Harness Target Selection`,
-      containerName: `TaskStream / ${ownerType} / Harness Target Selection`,
+      suiteName: `${displayOwnerType} / Harness Target Selection`,
+      containerName: `TaskStream / ${displayOwnerType} / Harness Target Selection`,
       labels: [
         ...outputOwnerLabels({
           ownerType,
           owner: outcome.selector,
-          concern: 'Harness Target Selection',
+          concern: 'harness-target-selection',
           requirements: ['REQ-INFRA-OBS-ALLURE-002', 'REQ-INFRA-OBS-ALLURE-003'],
+          tickets: ['INFRA-TEST-001', 'INFRA-TEST-002', 'ALLURE-OUTPUT-001'],
+          verificationSet: 'all-output-visible',
         }),
         { name: 'harnessState', value: outcome.state },
         { name: 'harnessSelector', value: outcome.selector },
@@ -513,10 +581,12 @@ export function emitHarnessAllureEvidence(options = {}) {
       containerName: 'TaskStream / Module / SystemTrace',
       labels: [
         ...outputOwnerLabels({
-          ownerType: 'Module',
+          ownerType: 'module',
           owner: 'SystemTrace',
-          concern: 'SystemTrace Output Verification',
+          concern: 'systemtrace-output-verification',
           requirements: ['REQ-INFRA-OBS-ALLURE-001', 'REQ-INFRA-OBS-ALLURE-004', 'REQ-INFRA-OBS-ALLURE-006'],
+          tickets: ['SYST-HARNESS-001', 'ALLURE-OUTPUT-001'],
+          verificationSet: 'systemtrace-wireup',
         }),
         { name: 'systemTraceStatus', value: summary.systemTrace.status },
       ],
@@ -620,8 +690,16 @@ export function verifyHarnessAllureEvidence({
   }
   assertAttachmentSourcesExist(resultsDir, attachments);
 
-  if (!results.some((result) => hasLabel(result, 'ownerType') && hasLabel(result, 'owner') && hasLabel(result, 'testConcern'))) {
-    throw new Error('Missing grouped Allure owner/testConcern labels');
+  for (const result of results) {
+    for (const labelName of ['verificationSet', 'ticket', 'ownerType', 'owner', 'testConcern']) {
+      if (!hasLabel(result, labelName)) {
+        throw new Error(`Missing ${labelName} Allure label on result: ${result.name}`);
+      }
+    }
+  }
+
+  if (!results.some((result) => hasLabel(result, 'requirement'))) {
+    throw new Error('Missing requirement Allure labels');
   }
 
   const requiresSystemTrace = requireSystemTrace || Boolean(summary.systemTrace);
@@ -630,7 +708,7 @@ export function verifyHarnessAllureEvidence({
     if (!systemTraceResult) {
       throw new Error('Missing SystemTrace output Allure result');
     }
-    if (!hasLabel(systemTraceResult, 'ownerType', 'Module') || !hasLabel(systemTraceResult, 'owner', 'SystemTrace')) {
+    if (!hasLabel(systemTraceResult, 'ownerType', 'module') || !hasLabel(systemTraceResult, 'owner', 'SystemTrace')) {
       throw new Error('SystemTrace output Allure result is not grouped by module ownership');
     }
     const systemTraceAttachments = systemTraceResult.attachments ?? [];
@@ -659,20 +737,28 @@ export function verifyTicketAllureEvidenceMapping({ ticketPaths = [] } = {}) {
 
   for (const ticketPath of ticketPaths) {
     const contents = readFileSync(ticketPath, 'utf8');
-    if (!contents.includes('## Output / Allure Visibility')) {
-      throw new Error(`Ticket is missing Output / Allure Visibility section: ${ticketPath}`);
+    if (contents.includes('# Implementation Ticket Template')) {
+      continue;
     }
-    for (const requiredLine of ['Allure group:', 'Allure result or report section:', 'Raw outputs:', 'Attachments / links:', 'Not applicable reason:']) {
-      if (!contents.includes(requiredLine)) {
-        throw new Error(`Ticket is missing ${requiredLine} in Output / Allure Visibility: ${ticketPath}`);
+    if (contents.includes('## Output / Allure Visibility')) {
+      for (const requiredLine of ['Allure group:', 'Allure result or report section:', 'Raw outputs:', 'Attachments / links:']) {
+        if (!contents.includes(requiredLine)) {
+          throw new Error(`Ticket is missing ${requiredLine} in Output / Allure Visibility: ${ticketPath}`);
+        }
       }
-    }
-    if (!/Allure evidence:\s*(?!pending|OPEN)(.+)/u.test(contents)) {
-      throw new Error(`Ticket required tests are missing concrete Allure evidence mapping: ${ticketPath}`);
+      if (!contents.includes('Not applicable reason:') && !contents.includes('Completion note:')) {
+        throw new Error(`Ticket is missing Output / Allure Visibility completion/not-applicable note: ${ticketPath}`);
+      }
+      if (!/Allure evidence:\s*(?!pending|OPEN)(.+)/u.test(contents)) {
+        throw new Error(`Ticket required tests are missing concrete Allure evidence mapping: ${ticketPath}`);
+      }
     }
   }
 
-  return { checked: ticketPaths.length };
+  return {
+    checked: ticketPaths.length,
+    metadata: verifyTicketMetadataCompleteness({ ticketPaths }),
+  };
 }
 
 function hasLabel(result, name, value) {

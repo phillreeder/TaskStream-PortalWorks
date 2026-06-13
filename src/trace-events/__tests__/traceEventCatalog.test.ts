@@ -24,11 +24,13 @@ function emitAllureEvidenceResult({
   name,
   attachmentName,
   attachment,
+  labels,
 }: {
   readonly suite: string;
   readonly name: string;
   readonly attachmentName: string;
   readonly attachment: unknown;
+  readonly labels: readonly { readonly name: string; readonly value: string }[];
 }) {
   const resultsDir = path.resolve(process.env.ALLURE_RESULTS_DIR ?? 'allure-results');
   mkdirSync(resultsDir, { recursive: true });
@@ -39,11 +41,12 @@ function emitAllureEvidenceResult({
   const attachmentSource = `${randomUUID()}-attachment.json`;
   writeFileSync(path.join(resultsDir, attachmentSource), `${JSON.stringify(attachment, null, 2)}\n`);
 
-  const fullName = `${suite} :: ${name}`;
+  const visibleName = withTicketSuffix(name, labels);
+  const fullName = withTicketSuffix(`${suite} :: ${name}`, labels);
   const resultPayload = {
     uuid: testUuid,
     historyId: createHash('md5').update(fullName).digest('hex'),
-    name,
+    name: visibleName,
     fullName,
     status: 'passed',
     stage: 'finished',
@@ -55,12 +58,14 @@ function emitAllureEvidenceResult({
         type: 'application/json',
       },
     ],
-    parameters: [],
+    parameters: metadataParameters(labels),
     labels: [
       { name: 'language', value: 'TypeScript' },
       { name: 'framework', value: 'vitest' },
       { name: 'suite', value: suite },
       { name: 'package', value: 'src/trace-events' },
+      ...labels,
+      ...metadataTagLabels(labels),
     ],
     start: now,
     stop: now,
@@ -79,6 +84,59 @@ function emitAllureEvidenceResult({
   writeFileSync(path.join(resultsDir, `${containerUuid}-container.json`), `${JSON.stringify(containerPayload, null, 2)}\n`);
 }
 
+const catalogAllureLabels = [
+  { name: 'verificationSet', value: 'order-proof' },
+  { name: 'ticket', value: 'SYST-EVENTS-001' },
+  { name: 'requirement', value: 'REQ-SYST-034' },
+  { name: 'requirement', value: 'REQ-SYST-035' },
+  { name: 'requirement', value: 'REQ-SYST-036' },
+  { name: 'ownerType', value: 'module' },
+  { name: 'owner', value: 'SystemTrace' },
+  { name: 'testConcern', value: 'trace-event-catalog' },
+] as const;
+
+const orderProofAllureLabels = [
+  { name: 'verificationSet', value: 'order-proof' },
+  { name: 'ticket', value: 'SYST-EVENTS-001' },
+  { name: 'requirement', value: 'REQ-SYST-040' },
+  { name: 'requirement', value: 'REQ-SYST-041' },
+  { name: 'requirement', value: 'REQ-RSC-058' },
+  { name: 'requirement', value: 'REQ-RSC-059' },
+  { name: 'ownerType', value: 'concept' },
+  { name: 'owner', value: 'RuntimeScaffold' },
+  { name: 'testConcern', value: 'order-proof' },
+  { name: 'runtimeSlice', value: 'flowOnly' },
+] as const;
+
+function labelValues(labels: readonly { readonly name: string; readonly value: string }[], name: string) {
+  return labels.filter((label) => label.name === name).map((label) => label.value);
+}
+
+function withTicketSuffix(value: string, labels: readonly { readonly name: string; readonly value: string }[]) {
+  const tickets = labelValues(labels, 'ticket');
+  return tickets.length > 0 ? `${value} [tickets: ${tickets.join(',')}]` : value;
+}
+
+function metadataParameters(labels: readonly { readonly name: string; readonly value: string }[]) {
+  return labels
+    .filter((label) => ['verificationSet', 'ticket', 'requirement', 'ownerType', 'owner', 'testConcern', 'runtimeSlice'].includes(label.name))
+    .map((label) => ({ name: label.name, value: label.value }));
+}
+
+function metadataTagLabels(labels: readonly { readonly name: string; readonly value: string }[]) {
+  return labels.flatMap((label) => {
+    if (!['verificationSet', 'ticket', 'requirement', 'testConcern', 'runtimeSlice'].includes(label.name)) {
+      return [];
+    }
+    return label.name === 'ticket'
+      ? [
+          { name: 'tag', value: label.value },
+          { name: 'tag', value: `ticket:${label.value}` },
+        ]
+      : [{ name: 'tag', value: `${label.name}:${label.value}` }];
+  });
+}
+
 describe('TaskStream / SystemTrace / Trace Event Catalog', () => {
   it('SystemTrace trace event catalog has no duplicate values', () => {
     const summary = createTraceEventCatalogSummary();
@@ -88,6 +146,7 @@ describe('TaskStream / SystemTrace / Trace Event Catalog', () => {
       name: 'Trace event catalog: uniqueness passed',
       attachmentName: 'trace-event-catalog-summary.json',
       attachment: summary,
+      labels: catalogAllureLabels,
     });
 
     expect(summary.ok).toBe(true);
@@ -171,6 +230,7 @@ describe('TaskStream / RuntimeScaffold / SystemTrace Order Proof', () => {
       name: 'RuntimeScaffold order proof: descriptor file read before normalize',
       attachmentName: 'order-proof-summary.json',
       attachment: proof,
+      labels: orderProofAllureLabels,
     });
 
     expect(proof).toEqual({
