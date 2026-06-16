@@ -1,4 +1,4 @@
-import type { TenantProcessSelector } from '../../../../../../domain/entities/execution.ts';
+import type { TenantProcessSelector } from '../../../../../../domain/entities/execution.js';
 
 const defaultSelector: TenantProcessSelector = {
   name: 'taskstream.default.selector',

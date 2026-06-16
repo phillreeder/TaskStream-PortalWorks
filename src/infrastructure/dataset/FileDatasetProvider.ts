@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { DatasetEnvelope, DatasetProvider, DatasetRequest, DatasetScope } from '../../domain/contracts/dataset.ts';
+import type { DatasetEnvelope, DatasetProvider, DatasetRequest, DatasetScope } from '../../domain/contracts/dataset.js';
 
 export interface FileDatasetProviderOptions {
   baseDir?: string;

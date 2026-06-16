@@ -1,4 +1,4 @@
-import type { StateTransitionOperation } from '../../../../../../domain/entities/execution.ts';
+import type { StateTransitionOperation } from '../../../../../../domain/entities/execution.js';
 
 const definitions: StateTransitionOperation[] = [
   {

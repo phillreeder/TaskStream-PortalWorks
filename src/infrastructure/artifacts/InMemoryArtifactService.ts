@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ArtifactInput, ArtifactRecord, ArtifactReference, ArtifactService } from '../../domain/contracts/artifacts.ts';
+import type { ArtifactInput, ArtifactRecord, ArtifactReference, ArtifactService } from '../../domain/contracts/artifacts.js';
 
 export interface InMemoryArtifactServiceOptions {
   clock?: () => string;

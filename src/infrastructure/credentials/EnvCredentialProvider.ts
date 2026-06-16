@@ -1,4 +1,4 @@
-import type { CredentialProvider, CredentialRecord, CredentialRequest } from '../../domain/contracts/credentials.ts';
+import type { CredentialProvider, CredentialRecord, CredentialRequest } from '../../domain/contracts/credentials.js';
 
 export interface EnvCredentialProviderOptions {
   prefix?: string;

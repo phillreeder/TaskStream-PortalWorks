@@ -1,4 +1,4 @@
-import type { LogContext, LogEntry, LogLevel, Logger } from '../../domain/contracts/logger.ts';
+import type { LogContext, LogEntry, LogLevel, Logger } from '../../domain/contracts/logger.js';
 
 export interface BasicLoggerOptions {
   console?: boolean;

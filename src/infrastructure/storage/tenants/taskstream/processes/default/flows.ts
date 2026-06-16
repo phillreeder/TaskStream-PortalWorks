@@ -1,4 +1,4 @@
-import type { FlowActionDefinition, FlowDefinition } from '../../../../../../domain/entities/execution.ts';
+import type { FlowActionDefinition, FlowDefinition } from '../../../../../../domain/entities/execution.js';
 
 const queueHandshake: FlowActionDefinition = {
   key: 'action.taskstream.queue-handshake',

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { StateChangeBatch, StateMutation, StateWriter } from '../../domain/contracts/stateWriter.ts';
+import type { StateChangeBatch, StateMutation, StateWriter } from '../../domain/contracts/stateWriter.js';
 
 export interface BufferedStateWriterOptions {
   clock?: () => string;

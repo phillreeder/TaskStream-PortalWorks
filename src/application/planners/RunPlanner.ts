@@ -6,13 +6,13 @@ import type {
   StoRejection,
   StreamState,
   TenantProcessRuntime,
-} from '../../domain/entities/execution.ts';
-import { evaluateStos, selectDeterministicSto } from '../../domain/logic/evaluators/StoEvaluator.ts';
-import { validateState } from '../../domain/logic/evaluators/StateDefinitionValidator.ts';
-import type { PlannerQueueRepository } from '../contracts/PlannerQueueRepository.ts';
-import type { RunRepository } from '../contracts/RunRepository.ts';
-import type { StreamStateRepository } from '../contracts/StreamStateRepository.ts';
-import type { TenantProcessRepository } from '../contracts/TenantProcessRepository.ts';
+} from '../../domain/entities/execution.js';
+import { evaluateStos, selectDeterministicSto } from '../../domain/logic/evaluators/StoEvaluator.js';
+import { validateState } from '../../domain/logic/evaluators/StateDefinitionValidator.js';
+import type { PlannerQueueRepository } from '../contracts/PlannerQueueRepository.js';
+import type { RunRepository } from '../contracts/RunRepository.js';
+import type { StreamStateRepository } from '../contracts/StreamStateRepository.js';
+import type { TenantProcessRepository } from '../contracts/TenantProcessRepository.js';
 import { RunPlannerError } from './errors.js';
 
 export interface RunPlannerDependencies {
