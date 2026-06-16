@@ -19,3 +19,4 @@ allure-report/**
 tmp/allure-results/**
 tmp/coverage/**
 tmp/allure-report/**
+graphify-out/**
