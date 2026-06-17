@@ -25,6 +25,8 @@ test('API creates a task through the gateway and retrieves it by id', async (t) 
     body: JSON.stringify({ name: 'Dashboard-created task' }),
   });
   const created = await createResponse.json() as { id: string };
+  const listResponse = await fetch(`${baseUrl}/tasks`);
+  const tasks = await listResponse.json() as Array<{ id: string; data: { name: string } }>;
   const getResponse = await fetch(`${baseUrl}/tasks/${created.id}`);
   const stored = await getResponse.json() as {
     id: string;
@@ -33,6 +35,9 @@ test('API creates a task through the gateway and retrieves it by id', async (t) 
   };
 
   assert.equal(createResponse.status, 201);
+  assert.equal(listResponse.status, 200);
+  assert.deepEqual(tasks.map((task) => task.id), [created.id]);
+  assert.deepEqual(tasks[0]?.data, { name: 'Dashboard-created task' });
   assert.equal(getResponse.status, 200);
   assert.equal(stored.id, created.id);
   assert.equal(stored.schemaVersion, 1);
@@ -64,5 +69,6 @@ test('API serves the minimal dashboard and browser API client from the same proc
   assert.equal(clientResponse.status, 200);
   assert.match(client, /class TaskApiClient/);
   assert.match(client, /createTask/);
+  assert.match(client, /getTasks/);
   assert.match(client, /getTask/);
 });

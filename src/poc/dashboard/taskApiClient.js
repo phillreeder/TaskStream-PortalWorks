@@ -11,6 +11,10 @@ export class TaskApiClient {
     });
   }
 
+  async getTasks() {
+    return this.#request('/tasks');
+  }
+
   async getTask(id) {
     return this.#request(`/tasks/${encodeURIComponent(id)}`);
   }

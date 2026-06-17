@@ -34,6 +34,11 @@ async function routeRequest(
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/tasks') {
+    sendJson(response, 200, await gateway.findAll());
+    return;
+  }
+
   if (method === 'POST' && url.pathname === '/tasks') {
     const body = await readJsonBody(request);
     const name = typeof body.name === 'string' ? body.name : '';
