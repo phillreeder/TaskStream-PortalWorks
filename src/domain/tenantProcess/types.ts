@@ -1,4 +1,13 @@
-import type { Constraint, FieldDefinitions, StateDefinition, StateDefinitionInput } from '../../definitionRuntime/state/index.js';
+import type {
+  Constraint,
+  FieldDefinitions,
+  StateContainerOptions,
+  StateContainerValidationResult,
+  StateDefinition,
+  StateDefinitionInput,
+  StatePathInput,
+  StatePathValueInput,
+} from '../../definitionRuntime/state/index.js';
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonObject = { readonly [key: string]: JsonValue };
@@ -138,15 +147,40 @@ export interface Flow<TState extends StateSnapshot = StateSnapshot> {
   readonly executable: FlowExecutable<TState>;
 }
 
-export type FlowExecutable<TState extends StateSnapshot = StateSnapshot> = (
+/**
+ * Temporary broad input surface until registered InputContracts provide
+ * per-Flow inference. TenantProcess source should consume this through
+ * flow((ctx, input) => ...), not import or annotate it directly.
+ */
+export type FlowInput = Record<string, any>;
+
+export interface FlowStateReader<TState extends StateSnapshot = StateSnapshot> {
+  get(input: StatePathInput): any;
+  snapshot?(): TState;
+}
+
+export interface FlowChangeWriter {
+  set(
+    input: StatePathValueInput,
+    options: StateContainerOptions & { readonly validateOnly: true },
+  ): StateContainerValidationResult;
+  set(input: StatePathValueInput, options?: StateContainerOptions): void;
+}
+
+export type FlowExecutable<
+  TState extends StateSnapshot = StateSnapshot,
+  TInput extends FlowInput = FlowInput,
+  TResult extends FlowResult = FlowResult,
+> = (
   context: FlowContext<TState>,
-) => Promise<FlowResult> | FlowResult;
+  input: TInput,
+) => Promise<TResult> | TResult;
 
 export interface FlowContext<TState extends StateSnapshot = StateSnapshot> {
   readonly taskRef: TaskRef;
   readonly stoRef: STORef;
-  readonly state: unknown;
-  readonly flowParams?: Record<string, unknown>;
+  readonly state: FlowStateReader<TState>;
+  readonly change: FlowChangeWriter;
 }
 
 export interface FlowResult {

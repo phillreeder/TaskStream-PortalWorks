@@ -1,4 +1,6 @@
 export { TenantProcessValidationError, failTenantProcessValidation } from './errors.js';
+export { channel } from './channel.js';
+export { flow } from './flow.js';
 export type {
   ArtifactContract,
   ArtifactContractRef,
@@ -14,12 +16,15 @@ export type {
   CredentialKind,
   EffectiveProcessState,
   Flow,
+  FlowChangeWriter,
   FlowContext,
   FlowExecutable,
   FlowExecutionContext,
   FlowExecutionResult,
+  FlowInput,
   FlowRef,
   FlowResult,
+  FlowStateReader,
   InputContract,
   InputContractRef,
   InputKind,

@@ -1,26 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
-  RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS,
-  runtimeSpineModelTenantProcess,
+  RUNTIME_SPINE_TENANT_PROCESS_IDS,
+  runtimeSpineTenantProcess,
 } from '../../../tenants/TaskStream/TenantProcesses/runtime-spine-001/index.js';
 import { TenantProcessValidationError } from '../errors.js';
 import { registerTenantProcess } from '../registerTenantProcess.js';
 import { validateTenantProcessDefinition } from '../validateTenantProcess.js';
 
-const cloneModelTenantProcess = (): Record<string, unknown> => ({
-  ...runtimeSpineModelTenantProcess,
-  tasks: { ...runtimeSpineModelTenantProcess.tasks },
-  channels: { ...runtimeSpineModelTenantProcess.channels },
-  stos: { ...runtimeSpineModelTenantProcess.stos },
-  flows: { ...runtimeSpineModelTenantProcess.flows },
-  stateDefinitions: { ...runtimeSpineModelTenantProcess.stateDefinitions },
-  validators: { ...runtimeSpineModelTenantProcess.validators },
-  mappers: { ...runtimeSpineModelTenantProcess.mappers },
-  processChannels: { ...runtimeSpineModelTenantProcess.processChannels },
-  unitSelectors: { ...runtimeSpineModelTenantProcess.unitSelectors },
-  inputContracts: { ...runtimeSpineModelTenantProcess.inputContracts },
-  resultContracts: { ...runtimeSpineModelTenantProcess.resultContracts },
-  artifactContracts: { ...runtimeSpineModelTenantProcess.artifactContracts },
+const cloneTenantProcess = (): Record<string, unknown> => ({
+  ...runtimeSpineTenantProcess,
+  tasks: { ...runtimeSpineTenantProcess.tasks },
+  channels: { ...runtimeSpineTenantProcess.channels },
+  stos: { ...runtimeSpineTenantProcess.stos },
+  flows: { ...runtimeSpineTenantProcess.flows },
+  stateDefinitions: { ...runtimeSpineTenantProcess.stateDefinitions },
+  validators: { ...runtimeSpineTenantProcess.validators },
+  mappers: { ...runtimeSpineTenantProcess.mappers },
 });
 
 const expectTenantProcessValidationError = (fn: () => void, path: string) => {
@@ -34,31 +29,25 @@ const expectTenantProcessValidationError = (fn: () => void, path: string) => {
 };
 
 describe('TenantProcess canonical definition validation', () => {
-  it('accepts executable scaffold TenantProcess shape with Task -> default STO -> Flow binding', () => {
-    const process = runtimeSpineModelTenantProcess;
+  it('accepts a TenantProcess that registers its StateDefinition from a dedicated file', () => {
+    const process = runtimeSpineTenantProcess;
 
     expect(() => validateTenantProcessDefinition(process)).not.toThrow();
-
-    const channelRequest = process.channels[RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.channel].executable({
-      taskRef: RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.task,
-      state: {
-        read: () => 'pending',
-      },
-    });
-
-    expect(channelRequest.selectedStoRef).toBe(process.tasks[RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.task].defaultStoRef);
-    expect(process.stos[channelRequest.selectedStoRef].flowRef).toBe(RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.flow);
+    expect(process.stateDefinitions[RUNTIME_SPINE_TENANT_PROCESS_IDS.stateDefinition]).toBeDefined();
+    expect(process.tasks[RUNTIME_SPINE_TENANT_PROCESS_IDS.task].stateDefinitionRef).toBe(
+      RUNTIME_SPINE_TENANT_PROCESS_IDS.stateDefinition,
+    );
   });
 
   it('registers a TenantProcess without runtime binding indirection', () => {
-    const process = runtimeSpineModelTenantProcess;
+    const process = runtimeSpineTenantProcess;
 
     expect(registerTenantProcess({ definition: process })).toEqual({ definition: process });
   });
 
   it('rejects legacy key/string-version root shape', () => {
     const process = {
-      ...cloneModelTenantProcess(),
+      ...cloneTenantProcess(),
       key: 'legacy.runtime-spine',
       processId: undefined,
       version: '1.0.0',
@@ -71,53 +60,53 @@ describe('TenantProcess canonical definition validation', () => {
   });
 
   it('rejects Channels that use executable refs instead of executable functions', () => {
-    const process = cloneModelTenantProcess();
+    const process = cloneTenantProcess();
     process.channels = {
-      [RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.channel]: {
-        channelId: RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.channel,
-        executableRef: 'channel.runtime-spine.select-next-sto.execute',
+      'channel.review-submission': {
+        channelId: 'channel.review-submission',
+        executableRef: 'channel.review-submission.execute',
       },
     };
 
     expectTenantProcessValidationError(
       () => validateTenantProcessDefinition(process),
-      `tenantProcess.channels.${RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.channel}.executableRef`,
+      'tenantProcess.channels.channel.review-submission.executableRef',
     );
   });
 
   it('rejects async Channels because Channel selection is synchronous', () => {
-    const process = cloneModelTenantProcess();
+    const process = cloneTenantProcess();
     process.channels = {
-      [RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.channel]: {
-        channelId: RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.channel,
+      'channel.review-submission': {
+        channelId: 'channel.review-submission',
         executable: async () => ({
-          requestId: 'request.runtime-spine.complete-work-item',
-          taskRef: RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.task,
-          channelRef: RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.channel,
-          selectedStoRef: RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.sto,
+          requestId: 'request.review-submission',
+          taskRef: RUNTIME_SPINE_TENANT_PROCESS_IDS.task,
+          channelRef: 'channel.review-submission',
+          selectedStoRef: 'sto.review-submission',
         }),
       },
     };
 
     expectTenantProcessValidationError(
       () => validateTenantProcessDefinition(process),
-      `tenantProcess.channels.${RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.channel}.executable`,
+      'tenantProcess.channels.channel.review-submission.executable',
     );
   });
 
   it('rejects Task-level Flow and output contract bindings', () => {
-    const process = cloneModelTenantProcess();
+    const process = cloneTenantProcess();
     process.tasks = {
-      [RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.task]: {
-        ...runtimeSpineModelTenantProcess.tasks[RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.task],
-        flowRefs: [RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.flow],
-        resultContractRefs: [RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.resultContract],
+      [RUNTIME_SPINE_TENANT_PROCESS_IDS.task]: {
+        ...runtimeSpineTenantProcess.tasks[RUNTIME_SPINE_TENANT_PROCESS_IDS.task],
+        flowRefs: ['flow.review-submission'],
+        resultContractRefs: ['result.review-submission'],
       },
     };
 
     expectTenantProcessValidationError(
       () => validateTenantProcessDefinition(process),
-      `tenantProcess.tasks.${RUNTIME_SPINE_MODEL_TENANT_PROCESS_IDS.task}.flowRefs`,
+      `tenantProcess.tasks.${RUNTIME_SPINE_TENANT_PROCESS_IDS.task}.flowRefs`,
     );
   });
 });
