@@ -92,3 +92,58 @@ export interface RuntimeScaffoldLoadFailure {
 }
 
 export type RuntimeScaffoldLoadResult = RuntimeScaffoldLoadSuccess | RuntimeScaffoldLoadFailure;
+
+export interface RuntimeScaffoldValidationSummary {
+  readonly valid: boolean;
+  readonly target: 'tenantProcess' | 'sourceState' | 'proposedState';
+  readonly notes?: readonly string[];
+}
+
+export interface RuntimeScaffoldArtifactRefs {
+  readonly resultArtifactRef?: string;
+  readonly traceRef?: string;
+  readonly proposedStateArtifactRef?: string;
+}
+
+export interface RuntimeScaffoldExecutionSuccess extends RuntimeScaffoldArtifactRefs {
+  readonly ok: true;
+  readonly status: 'succeeded';
+  readonly controlPath?: string;
+  readonly executionPath?: string;
+  readonly executionFormat?: RuntimeScaffoldRunFileFormat;
+  readonly descriptorId: string;
+  readonly descriptor: RuntimeScaffoldDescriptor;
+  readonly mode: RuntimeScaffoldExecutionMode;
+  readonly tenantProcessId?: string;
+  readonly taskId: string;
+  readonly selectedStoId: string;
+  readonly selectedFlowId: string;
+  readonly previousState: unknown;
+  readonly proposedState: unknown;
+  readonly validation: RuntimeScaffoldValidationSummary;
+  readonly flowResult: unknown;
+  readonly warnings: readonly string[];
+}
+
+export interface RuntimeScaffoldExecutionFailure extends RuntimeScaffoldArtifactRefs {
+  readonly ok: false;
+  readonly status: 'failed';
+  readonly controlPath?: string;
+  readonly executionPath?: string;
+  readonly executionFormat?: RuntimeScaffoldRunFileFormat;
+  readonly descriptorId?: string;
+  readonly descriptor?: RuntimeScaffoldDescriptor;
+  readonly mode?: RuntimeScaffoldExecutionMode;
+  readonly tenantProcessId?: string;
+  readonly taskId?: string;
+  readonly selectedStoId?: string;
+  readonly selectedFlowId?: string;
+  readonly previousState?: unknown;
+  readonly proposedState?: unknown;
+  readonly validation?: RuntimeScaffoldValidationSummary;
+  readonly errorPhase: import('./errors.js').RuntimeScaffoldExecutionErrorPhase;
+  readonly error: import('./errors.js').RuntimeScaffoldExecutionError | import('./errors.js').RuntimeScaffoldLoadError;
+  readonly warnings: readonly string[];
+}
+
+export type RuntimeScaffoldExecutionResult = RuntimeScaffoldExecutionSuccess | RuntimeScaffoldExecutionFailure;

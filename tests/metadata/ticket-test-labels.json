@@ -5,7 +5,9 @@
       "file": "tests/smoke/placeholder.test.ts",
       "labels": {
         "verificationSet": "test-platform-v1",
-        "tickets": ["T003"],
+        "tickets": [
+          "T003"
+        ],
         "requirements": [],
         "ownerType": "infrastructure",
         "owner": "Test Harness",
@@ -16,7 +18,9 @@
       "file": "src/definitionRuntime/state/__tests__/defineState.test.ts",
       "labels": {
         "verificationSet": "state-runtime-v1",
-        "tickets": ["T004"],
+        "tickets": [
+          "T004"
+        ],
         "requirements": [],
         "ownerType": "module",
         "owner": "State Definition Runtime",
@@ -27,7 +31,9 @@
       "file": "src/definitionRuntime/state/__tests__/validateChanges.test.ts",
       "labels": {
         "verificationSet": "state-runtime-v1",
-        "tickets": ["T005"],
+        "tickets": [
+          "T005"
+        ],
         "requirements": [],
         "ownerType": "module",
         "owner": "State Definition Runtime",
@@ -38,7 +44,10 @@
       "file": "src/definitionRuntime/state/__tests__/validateAndApply.test.ts",
       "labels": {
         "verificationSet": "state-runtime-v1",
-        "tickets": ["T006", "T009"],
+        "tickets": [
+          "T006",
+          "T009"
+        ],
         "requirements": [],
         "ownerType": "module",
         "owner": "State Definition Runtime",
@@ -49,7 +58,9 @@
       "file": "src/definitionRuntime/state/__tests__/comparison.test.ts",
       "labels": {
         "verificationSet": "state-runtime-v1",
-        "tickets": ["T007"],
+        "tickets": [
+          "T007"
+        ],
         "requirements": [],
         "ownerType": "module",
         "owner": "State Definition Runtime",
@@ -60,7 +71,9 @@
       "file": "src/definitionRuntime/state/__tests__/stateContainer.test.ts",
       "labels": {
         "verificationSet": "state-runtime-v1",
-        "tickets": ["T011"],
+        "tickets": [
+          "T011"
+        ],
         "requirements": [],
         "ownerType": "module",
         "owner": "StateContainer",
@@ -71,7 +84,9 @@
       "file": "src/definitionRuntime/state/__tests__/stateFacades.test.ts",
       "labels": {
         "verificationSet": "state-runtime-v1",
-        "tickets": ["T012"],
+        "tickets": [
+          "T012"
+        ],
         "requirements": [],
         "ownerType": "module",
         "owner": "StateContainer",
@@ -82,7 +97,9 @@
       "file": "src/modules/SystemTrace/__tests__/SystemTraceRecorder.test.ts",
       "labels": {
         "verificationSet": "systemtrace-core-v1",
-        "tickets": ["SYST-003"],
+        "tickets": [
+          "SYST-003"
+        ],
         "requirements": [
           "REQ-SYST-001",
           "REQ-SYST-002",
@@ -112,8 +129,13 @@
       "testName": "supports bound tracer presets and records tags as arrays",
       "labels": {
         "verificationSet": "systemtrace-wireup",
-        "tickets": ["MODLINK-SYST-001"],
-        "requirements": ["REQ-SYST-032", "REQ-ML-013"],
+        "tickets": [
+          "MODLINK-SYST-001"
+        ],
+        "requirements": [
+          "REQ-SYST-032",
+          "REQ-ML-013"
+        ],
         "ownerType": "module",
         "owner": "SystemTrace",
         "testConcern": "bound-tracer"
@@ -123,7 +145,9 @@
       "file": "src/modules/ModuleLink/__tests__/ModuleLinkCore.test.ts",
       "labels": {
         "verificationSet": "modulelink-core-v1",
-        "tickets": ["MODLINK-002"],
+        "tickets": [
+          "MODLINK-002"
+        ],
         "requirements": [
           "REQ-ML-001",
           "REQ-ML-002",
@@ -143,7 +167,9 @@
       "file": "src/modules/ModuleLink/__tests__/SystemTraceFacade.test.ts",
       "labels": {
         "verificationSet": "systemtrace-wireup",
-        "tickets": ["MODLINK-SYST-001"],
+        "tickets": [
+          "MODLINK-SYST-001"
+        ],
         "requirements": [
           "REQ-ML-004",
           "REQ-ML-005",
@@ -166,7 +192,9 @@
       "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
       "labels": {
         "verificationSet": "runtime-spine-v1",
-        "tickets": ["RS-001"],
+        "tickets": [
+          "RS-001"
+        ],
         "requirements": [
           "REQ-RSC-001",
           "REQ-RSC-023",
@@ -189,8 +217,14 @@
       "testName": "normalizes channelFlow descriptors without resolving Channel, STO, or Flow semantics",
       "labels": {
         "verificationSet": "runtime-spine-v1",
-        "tickets": ["RS-001"],
-        "requirements": ["REQ-RSC-001", "REQ-RSC-028", "REQ-RSC-043"],
+        "tickets": [
+          "RS-001"
+        ],
+        "requirements": [
+          "REQ-RSC-001",
+          "REQ-RSC-028",
+          "REQ-RSC-043"
+        ],
         "ownerType": "concept",
         "owner": "RuntimeScaffold",
         "testConcern": "descriptor-loading",
@@ -202,8 +236,15 @@
       "testName": "emits SystemTrace spans through ModuleLink for descriptor loading and normalization",
       "labels": {
         "verificationSet": "systemtrace-wireup",
-        "tickets": ["SYST-WIRE-001"],
-        "requirements": ["REQ-SYST-024", "REQ-SYST-025", "REQ-SYST-030", "REQ-ML-012"],
+        "tickets": [
+          "SYST-WIRE-001"
+        ],
+        "requirements": [
+          "REQ-SYST-024",
+          "REQ-SYST-025",
+          "REQ-SYST-030",
+          "REQ-ML-012"
+        ],
         "ownerType": "concept",
         "owner": "RuntimeScaffold",
         "testConcern": "trace-emission",
@@ -215,8 +256,15 @@
       "testName": "records RuntimeScaffold source identity and operation classification in trace spans",
       "labels": {
         "verificationSet": "systemtrace-wireup",
-        "tickets": ["SYST-WIRE-001"],
-        "requirements": ["REQ-SYST-029", "REQ-SYST-030", "REQ-SYST-031", "REQ-ML-013"],
+        "tickets": [
+          "SYST-WIRE-001"
+        ],
+        "requirements": [
+          "REQ-SYST-029",
+          "REQ-SYST-030",
+          "REQ-SYST-031",
+          "REQ-ML-013"
+        ],
         "ownerType": "concept",
         "owner": "RuntimeScaffold",
         "testConcern": "trace-classification",
@@ -228,8 +276,13 @@
       "testName": "closes RuntimeScaffold traced failure paths with END error status while preserving failure results",
       "labels": {
         "verificationSet": "systemtrace-wireup",
-        "tickets": ["SYST-WIRE-001"],
-        "requirements": ["REQ-SYST-027", "REQ-ML-014"],
+        "tickets": [
+          "SYST-WIRE-001"
+        ],
+        "requirements": [
+          "REQ-SYST-027",
+          "REQ-ML-014"
+        ],
         "ownerType": "concept",
         "owner": "RuntimeScaffold",
         "testConcern": "failed-span-closure",
@@ -241,8 +294,14 @@
       "testName": "runtime-scaffold uses shared trace event catalog names",
       "labels": {
         "verificationSet": "order-proof",
-        "tickets": ["SYST-EVENTS-001"],
-        "requirements": ["REQ-SYST-034", "REQ-SYST-035", "REQ-RSC-057"],
+        "tickets": [
+          "SYST-EVENTS-001"
+        ],
+        "requirements": [
+          "REQ-SYST-034",
+          "REQ-SYST-035",
+          "REQ-RSC-057"
+        ],
         "ownerType": "concept",
         "owner": "RuntimeScaffold",
         "testConcern": "trace-event-catalog",
@@ -254,8 +313,15 @@
       "testName": "TaskStream / RuntimeScaffold / SystemTrace Order Proof proves descriptor trace order by seq",
       "labels": {
         "verificationSet": "order-proof",
-        "tickets": ["SYST-EVENTS-001"],
-        "requirements": ["REQ-SYST-040", "REQ-SYST-041", "REQ-RSC-058", "REQ-RSC-059"],
+        "tickets": [
+          "SYST-EVENTS-001"
+        ],
+        "requirements": [
+          "REQ-SYST-040",
+          "REQ-SYST-041",
+          "REQ-RSC-058",
+          "REQ-RSC-059"
+        ],
         "ownerType": "concept",
         "owner": "RuntimeScaffold",
         "testConcern": "order-proof",
@@ -266,7 +332,9 @@
       "file": "src/trace-events/__tests__/traceEventCatalog.test.ts",
       "labels": {
         "verificationSet": "order-proof",
-        "tickets": ["SYST-EVENTS-001"],
+        "tickets": [
+          "SYST-EVENTS-001"
+        ],
         "requirements": [
           "REQ-SYST-034",
           "REQ-SYST-035",
@@ -289,7 +357,9 @@
       "file": "tests/harness/harness.test.mjs",
       "labels": {
         "verificationSet": "test-platform-v1",
-        "tickets": ["INFRA-TEST-001"],
+        "tickets": [
+          "INFRA-TEST-001"
+        ],
         "requirements": [
           "REQ-INFRA-TEST-HARNESS-001",
           "REQ-INFRA-TEST-HARNESS-002",
@@ -322,8 +392,13 @@
       "testName": "harness verifies systemtrace output exists and parses valid json records",
       "labels": {
         "verificationSet": "systemtrace-wireup",
-        "tickets": ["SYST-HARNESS-001"],
-        "requirements": ["REQ-SYST-011", "REQ-SYST-012"],
+        "tickets": [
+          "SYST-HARNESS-001"
+        ],
+        "requirements": [
+          "REQ-SYST-011",
+          "REQ-SYST-012"
+        ],
         "ownerType": "module",
         "owner": "SystemTrace",
         "testConcern": "systemtrace-output-verification"
@@ -334,8 +409,15 @@
       "testName": "harness verifies systemtrace sequence start-end duration and failed span closure",
       "labels": {
         "verificationSet": "systemtrace-wireup",
-        "tickets": ["SYST-HARNESS-001"],
-        "requirements": ["REQ-SYST-024", "REQ-SYST-025", "REQ-SYST-026", "REQ-SYST-027"],
+        "tickets": [
+          "SYST-HARNESS-001"
+        ],
+        "requirements": [
+          "REQ-SYST-024",
+          "REQ-SYST-025",
+          "REQ-SYST-026",
+          "REQ-SYST-027"
+        ],
         "ownerType": "module",
         "owner": "SystemTrace",
         "testConcern": "systemtrace-span-verification"
@@ -346,8 +428,13 @@
       "testName": "harness fails clearly when expected systemtrace output is missing or malformed",
       "labels": {
         "verificationSet": "systemtrace-wireup",
-        "tickets": ["SYST-HARNESS-001"],
-        "requirements": ["REQ-SYST-011", "REQ-SYST-012"],
+        "tickets": [
+          "SYST-HARNESS-001"
+        ],
+        "requirements": [
+          "REQ-SYST-011",
+          "REQ-SYST-012"
+        ],
         "ownerType": "module",
         "owner": "SystemTrace",
         "testConcern": "systemtrace-output-verification"
@@ -357,7 +444,10 @@
       "file": "tests/harness/harness-allure.test.mjs",
       "labels": {
         "verificationSet": "all-output-visible",
-        "tickets": ["INFRA-TEST-002", "ALLURE-OUTPUT-001"],
+        "tickets": [
+          "INFRA-TEST-002",
+          "ALLURE-OUTPUT-001"
+        ],
         "requirements": [
           "REQ-INFRA-TEST-ALLURE-001",
           "REQ-INFRA-TEST-ALLURE-002",
@@ -385,6 +475,237 @@
         "ownerType": "infrastructure",
         "owner": "Test Harness",
         "testConcern": "allure-output"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/RuntimeScaffoldRuntimeSpine.test.ts",
+      "labels": {
+        "verificationSet": "runtime-spine-v1",
+        "tickets": [
+          "RUNTIME-SPINE-001"
+        ],
+        "requirements": [
+          "REQ-RSC-002",
+          "REQ-RSC-003",
+          "REQ-RSC-004",
+          "REQ-RSC-005",
+          "REQ-RSC-006",
+          "REQ-RSC-008",
+          "REQ-RSC-012",
+          "REQ-RSC-016",
+          "REQ-RSC-017",
+          "REQ-RSC-019",
+          "REQ-RSC-021",
+          "REQ-RSC-022",
+          "REQ-RSC-030",
+          "REQ-RSC-032",
+          "REQ-RSC-033",
+          "REQ-RSC-034",
+          "REQ-SC-001",
+          "REQ-SC-002",
+          "REQ-SC-007",
+          "REQ-SC-030",
+          "REQ-SC-040",
+          "REQ-SC-043",
+          "REQ-SC-050"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "flowOnly-runtime-spine",
+        "runtimeSlice": "flowonly-runtime-spine-v1"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/RuntimeScaffoldPipeline.test.ts",
+      "testName": "[tickets: RSC-PIPELINE-001] runtime-scaffold executes through explicit ordered pipeline stages",
+      "labels": {
+        "verificationSet": "runtime-scaffold-pipeline-v1",
+        "tickets": [
+          "RSC-PIPELINE-001"
+        ],
+        "requirements": [
+          "REQ-RSC-002",
+          "REQ-RSC-003",
+          "REQ-RSC-004",
+          "REQ-RSC-016",
+          "REQ-RSC-017",
+          "REQ-RSC-021",
+          "REQ-RSC-022",
+          "REQ-RSC-023"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "ordered-stage-execution",
+        "runtimeSlice": "flowonly-runtime-spine-v1"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/RuntimeScaffoldPipeline.test.ts",
+      "testName": "[tickets: RSC-PIPELINE-001] runtime-scaffold confines TenantProcess shape adaptation to one boundary",
+      "labels": {
+        "verificationSet": "runtime-scaffold-pipeline-v1",
+        "tickets": [
+          "RSC-PIPELINE-001"
+        ],
+        "requirements": [
+          "REQ-RSC-008",
+          "REQ-RSC-009",
+          "REQ-RSC-010",
+          "REQ-RSC-012",
+          "REQ-RSC-013",
+          "REQ-RSC-021",
+          "REQ-RSC-022"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "tenantprocess-shape-boundary",
+        "runtimeSlice": "flowonly-runtime-spine-v1"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/RuntimeScaffoldPipeline.test.ts",
+      "testName": "[tickets: RSC-PIPELINE-001] runtime-scaffold stops after a failed pipeline stage",
+      "labels": {
+        "verificationSet": "runtime-scaffold-pipeline-v1",
+        "tickets": [
+          "RSC-PIPELINE-001"
+        ],
+        "requirements": [
+          "REQ-RSC-006",
+          "REQ-RSC-008",
+          "REQ-RSC-016",
+          "REQ-RSC-017",
+          "REQ-RSC-021",
+          "REQ-RSC-022"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "pipeline-short-circuit",
+        "runtimeSlice": "flowonly-runtime-spine-v1"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/RuntimeScaffoldPipeline.test.ts",
+      "testName": "[tickets: RSC-PIPELINE-001] runtime-scaffold invokes Flow only through ScaffoldFlowRunner",
+      "labels": {
+        "verificationSet": "runtime-scaffold-pipeline-v1",
+        "tickets": [
+          "RSC-PIPELINE-001"
+        ],
+        "requirements": [
+          "REQ-RSC-003",
+          "REQ-RSC-004",
+          "REQ-RSC-005",
+          "REQ-RSC-008",
+          "REQ-RSC-009",
+          "REQ-RSC-010",
+          "REQ-RSC-016",
+          "REQ-RSC-021",
+          "REQ-RSC-022",
+          "REQ-RSC-023"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "flow-runner-boundary",
+        "runtimeSlice": "flowonly-runtime-spine-v1"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/RuntimeScaffoldPipeline.test.ts",
+      "testName": "[tickets: RSC-PIPELINE-001, RUNTIME-SPINE-001] explicit pipeline preserves flowOnly runtime-spine behavior and evidence",
+      "labels": {
+        "verificationSet": "runtime-scaffold-pipeline-v1",
+        "tickets": [
+          "RSC-PIPELINE-001",
+          "RUNTIME-SPINE-001"
+        ],
+        "requirements": [
+          "REQ-RSC-002",
+          "REQ-RSC-003",
+          "REQ-RSC-004",
+          "REQ-RSC-005",
+          "REQ-RSC-006",
+          "REQ-RSC-008",
+          "REQ-RSC-012",
+          "REQ-RSC-016",
+          "REQ-RSC-017",
+          "REQ-RSC-018",
+          "REQ-RSC-021",
+          "REQ-RSC-022",
+          "REQ-RSC-023",
+          "REQ-RSC-034"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "runtime-spine-behavior-parity",
+        "runtimeSlice": "flowonly-runtime-spine-v1"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/RuntimeScaffoldRuntimeSpine.test.ts",
+      "testName": "[tickets: RUNTIME-SPINE-001] flowOnly runtime spine rejects missing TenantProcess or Task before execution",
+      "labels": {
+        "verificationSet": "runtime-spine-v1",
+        "tickets": [
+          "RUNTIME-SPINE-001"
+        ],
+        "requirements": [
+          "REQ-RSC-002",
+          "REQ-RSC-003",
+          "REQ-RSC-008",
+          "REQ-RSC-009",
+          "REQ-RSC-010",
+          "REQ-RSC-022"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "flowOnly-structural-failure",
+        "runtimeSlice": "flowonly-runtime-spine-v1"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/RuntimeScaffoldRuntimeSpine.test.ts",
+      "testName": "[tickets: RUNTIME-SPINE-001] flowOnly runtime spine isolates previousState from proposedState",
+      "labels": {
+        "verificationSet": "runtime-spine-v1",
+        "tickets": [
+          "RUNTIME-SPINE-001"
+        ],
+        "requirements": [
+          "REQ-RSC-004",
+          "REQ-RSC-005",
+          "REQ-RSC-018",
+          "REQ-SC-001",
+          "REQ-SC-002",
+          "REQ-SC-007",
+          "REQ-SC-050"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "flowOnly-state-isolation",
+        "runtimeSlice": "flowonly-runtime-spine-v1"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/RuntimeScaffoldRuntimeSpine.test.ts",
+      "testName": "[tickets: RUNTIME-SPINE-001] flowOnly runtime spine writes result and trace evidence",
+      "labels": {
+        "verificationSet": "runtime-spine-v1",
+        "tickets": [
+          "RUNTIME-SPINE-001"
+        ],
+        "requirements": [
+          "REQ-RSC-016",
+          "REQ-RSC-017",
+          "REQ-RSC-019",
+          "REQ-SYST-004",
+          "REQ-SYST-034",
+          "REQ-SYST-039"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "flowOnly-result-and-trace-evidence",
+        "runtimeSlice": "flowonly-runtime-spine-v1"
       }
     }
   ],

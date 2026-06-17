@@ -41,7 +41,9 @@
     "prisma:db:push": "prisma db push",
     "prisma:db:pull": "prisma db pull",
     "prisma:db:reset": "prisma migrate reset --force",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "poc:ieb-beta-api": "tsx src/poc/iebBetaApi.ts",
+    "poc:test": "node --import tsx --test src/**/*.node.test.ts"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.2.0",
