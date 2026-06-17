@@ -1,0 +1,107 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { TaskStorageGateway } from '../../tenants/IEBBeta/TenantProcesses/Test1/task-storage/TaskStorageGateway.js';
+import {
+  listInspectionCollections,
+  listInspectionRecords,
+  type InspectionFilters,
+} from './inspection.js';
+
+export async function routeTaskStorageRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  gateway: TaskStorageGateway,
+  url: URL,
+): Promise<boolean> {
+  const method = request.method ?? 'GET';
+
+  if (method === 'GET' && url.pathname === '/api/inspection/collections') {
+    sendJson(response, 200, listInspectionCollections());
+    return true;
+  }
+
+  const collectionMatch = /^\/api\/inspection\/collections\/([^/]+)\/records$/.exec(url.pathname);
+  if (method === 'GET' && collectionMatch) {
+    const records = await listInspectionRecords(
+      gateway,
+      decodeURIComponent(collectionMatch[1]),
+      readInspectionFilters(url),
+    );
+
+    if (!records) {
+      sendJson(response, 404, { error: 'Inspection collection not found.' });
+      return true;
+    }
+
+    sendJson(response, 200, records);
+    return true;
+  }
+
+  if (method === 'GET' && url.pathname === '/api/tasks') {
+    sendJson(response, 200, await gateway.listTasks(readInspectionFilters(url)));
+    return true;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/tasks') {
+    const body = await readJsonBody(request);
+    const name = typeof body.name === 'string' ? body.name : '';
+
+    if (!name.trim()) {
+      sendJson(response, 400, { error: 'Task name is required.' });
+      return true;
+    }
+
+    sendJson(response, 201, await gateway.createTask({ data: { name } }));
+    return true;
+  }
+
+  const taskMatch = /^\/api\/tasks\/([^/]+)$/.exec(url.pathname);
+  if (method === 'GET' && taskMatch) {
+    const task = await gateway.getTask(decodeURIComponent(taskMatch[1]));
+    if (!task) {
+      sendJson(response, 404, { error: 'Task not found.' });
+      return true;
+    }
+
+    sendJson(response, 200, task);
+    return true;
+  }
+
+  if (method === 'GET' && url.pathname === '/api/task-structure') {
+    sendJson(response, 200, await gateway.getCurrentTaskStructure());
+    return true;
+  }
+
+  return false;
+}
+
+function readInspectionFilters(url: URL): InspectionFilters {
+  const tenantId = url.searchParams.get('tenantId')?.trim();
+  const tenantProcessId = url.searchParams.get('tenantProcessId')?.trim();
+
+  return {
+    ...(tenantId ? { tenantId } : {}),
+    ...(tenantProcessId ? { tenantProcessId } : {}),
+  };
+}
+
+async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  if (chunks.length === 0) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
+  } catch {
+    throw new Error('Request body must be valid JSON.');
+  }
+}
+
+function sendJson(response: ServerResponse, statusCode: number, body: unknown): void {
+  response.writeHead(statusCode, { 'content-type': 'application/json; charset=utf-8' });
+  response.end(JSON.stringify(body));
+}

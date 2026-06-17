@@ -20,3 +20,4 @@ tmp/allure-results/**
 tmp/coverage/**
 tmp/allure-report/**
 graphify-out/**
+services/web-dashboard/package-lock.json

@@ -10,4 +10,5 @@ export * as SystemTrace from './modules/SystemTrace/index.js';
 export * as ModuleLink from './modules/ModuleLink/index.js';
 export * as RuntimeScaffoldModule from './modules/runtime-scaffold/index.js';
 export * as ApiModule from './modules/API/index.js';
+export * as TaskStorageModule from './modules/task-storage/index.js';
 export * as IEBBetaTest1 from './tenants/IEBBeta/TenantProcesses/Test1/index.js';

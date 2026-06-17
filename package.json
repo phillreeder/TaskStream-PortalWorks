@@ -43,7 +43,10 @@
     "prisma:db:reset": "prisma migrate reset --force",
     "prisma:studio": "prisma studio",
     "poc:ieb-beta-api": "tsx src/poc/iebBetaApi.ts",
-    "poc:test": "node --import tsx --test src/**/*.node.test.ts"
+    "poc:test": "node --import tsx --test src/**/*.node.test.ts",
+    "poc:dashboard:dev": "npm --prefix services/web-dashboard run dev",
+    "poc:dashboard:build": "npm --prefix services/web-dashboard run build",
+    "poc:dev": "concurrently -n api,dashboard -c auto \"npm:poc:ieb-beta-api\" \"npm:poc:dashboard:dev\""
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.2.0",
@@ -56,7 +59,8 @@
     "http-server": "^14.1.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "concurrently": "^9.2.0"
   },
   "dependencies": {
     "@prisma/client": "^7.4.2",
