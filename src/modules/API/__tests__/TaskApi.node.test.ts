@@ -38,6 +38,17 @@ test('API creates, lists, and retrieves a stored task through /api routes', asyn
   assert.equal(stored.id, created.id);
   assert.equal(stored.schemaVersion, 1);
   assert.deepEqual(stored.data, { name: 'Dashboard-created task' });
+
+  const signalResponse = await fetch(`${baseUrl}/api/tasks/${created.id}/update-signals`, { method: 'POST' });
+  const signal = await signalResponse.json() as { taskId: string; status: string };
+  const signalsResponse = await fetch(`${baseUrl}/api/inspection/collections/task-update-signals/records`);
+  const signals = await signalsResponse.json() as Array<{ data: { taskId: string; status: string } }>;
+
+  assert.equal(signalResponse.status, 202);
+  assert.equal(signal.taskId, created.id);
+  assert.equal(signal.status, 'queued');
+  assert.equal(signals[0]?.data.taskId, created.id);
+  assert.equal(signals[0]?.data.status, 'queued');
 });
 
 test('inspection API exposes collections and normalized provenance records', async (t) => {
@@ -57,10 +68,10 @@ test('inspection API exposes collections and normalized provenance records', asy
   const structures = await structuresResponse.json() as Array<{ title: string; provenance: { sourceType: string } }>;
 
   assert.equal(healthResponse.status, 200);
-  assert.deepEqual(collections.map((collection) => collection.id), ['tasks', 'entity-structure-versions']);
+  assert.deepEqual(collections.map((collection) => collection.id), ['tasks', 'task-update-signals', 'task-events', 'planner-queue', 'entity-structure-versions']);
   assert.equal(tasks[0]?.title, 'Inspectable task');
   assert.equal(tasks[0]?.provenance.tenantId, 'IEBBeta');
-  assert.equal(structures[0]?.title, 'Task v1');
+  assert.ok(structures.some((record) => record.title === 'Task v1'));
   assert.equal(structures[0]?.provenance.sourceType, 'system-registration');
 });
 

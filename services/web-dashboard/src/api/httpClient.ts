@@ -1,6 +1,11 @@
-export async function getJson<T>(path: string): Promise<T> {
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
-    headers: { accept: 'application/json' },
+    ...init,
+    headers: {
+      accept: 'application/json',
+      ...(init?.body ? { 'content-type': 'application/json' } : {}),
+      ...init?.headers,
+    },
   });
 
   if (!response.ok) {
@@ -9,4 +14,15 @@ export async function getJson<T>(path: string): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+export function getJson<T>(path: string): Promise<T> {
+  return requestJson(path);
+}
+
+export function postJson<T>(path: string, body?: unknown): Promise<T> {
+  return requestJson(path, {
+    method: 'POST',
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
 }

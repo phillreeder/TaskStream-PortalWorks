@@ -36,7 +36,7 @@ export class ScaffoldExecutionLoader {
   }
 
   async loadFromControlFile(controlPath: string): Promise<RuntimeScaffoldLoadResult> {
-    const resolvedControlPath = path.resolve(controlPath);
+  const resolvedControlPath = path.resolve(controlPath);
     const descriptorEvents = RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading;
 
     const controlRead = await this.traceResult(descriptorEvents.controlRead, { path: resolvedControlPath }, () =>

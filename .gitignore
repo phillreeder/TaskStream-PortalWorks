@@ -11,7 +11,7 @@ TaskStream.zip
 test-results
 allure-report
 coverage
-
+node_modules
 src/tenants/**
 Containers/volumes/logs/**
 allure-results/**
@@ -21,3 +21,4 @@ tmp/coverage/**
 tmp/allure-report/**
 graphify-out/**
 services/web-dashboard/package-lock.json
+services/web-dashboard/node_modules

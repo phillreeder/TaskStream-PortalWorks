@@ -54,6 +54,18 @@ export async function routeTaskStorageRequest(
     return true;
   }
 
+  const updateSignalMatch = /^\/api\/tasks\/([^/]+)\/update-signals$/.exec(url.pathname);
+  if (method === 'POST' && updateSignalMatch) {
+    const signal = await gateway.signalTaskUpdate(decodeURIComponent(updateSignalMatch[1]));
+    if (!signal) {
+      sendJson(response, 404, { error: 'Task not found.' });
+      return true;
+    }
+
+    sendJson(response, 202, signal);
+    return true;
+  }
+
   const taskMatch = /^\/api\/tasks\/([^/]+)$/.exec(url.pathname);
   if (method === 'GET' && taskMatch) {
     const task = await gateway.getTask(decodeURIComponent(taskMatch[1]));

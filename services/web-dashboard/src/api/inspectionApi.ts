@@ -1,10 +1,11 @@
-import { getJson } from './httpClient';
+import { getJson, postJson } from './httpClient';
 import type {
   HealthResponse,
   InspectionCollection,
   InspectionCollectionId,
   InspectionRecord,
   ProvenanceFilters,
+  TaskUpdateSignal,
 } from './contracts';
 
 export const inspectionApi = {
@@ -14,6 +15,14 @@ export const inspectionApi = {
 
   collections(): Promise<InspectionCollection[]> {
     return getJson('/api/inspection/collections');
+  },
+
+  createTask(name: string): Promise<{ id: string }> {
+    return postJson('/api/tasks', { name });
+  },
+
+  signalTaskUpdate(taskId: string): Promise<TaskUpdateSignal> {
+    return postJson(`/api/tasks/${encodeURIComponent(taskId)}/update-signals`);
   },
 
   records(collectionId: InspectionCollectionId, filters: ProvenanceFilters): Promise<InspectionRecord[]> {

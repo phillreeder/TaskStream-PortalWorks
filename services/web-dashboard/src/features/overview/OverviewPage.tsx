@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import type { FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { inspectionApi } from '../../api/inspectionApi';
 import type {
   InspectionCollection,
@@ -12,9 +13,18 @@ type CollectionColumnProps = {
   filters: ProvenanceFilters;
   refreshInterval: number | false;
   onSelect: (record: InspectionRecord) => void;
+  onSignalTaskUpdate: (taskId: string) => void;
+  signallingTaskId: string | null;
 };
 
-function CollectionColumn({ collection, filters, refreshInterval, onSelect }: CollectionColumnProps) {
+function CollectionColumn({
+  collection,
+  filters,
+  refreshInterval,
+  onSelect,
+  onSignalTaskUpdate,
+  signallingTaskId,
+}: CollectionColumnProps) {
   const recordsQuery = useQuery({
     queryKey: ['inspection-records', collection.id, filters],
     queryFn: () => inspectionApi.records(collection.id, filters),
@@ -40,12 +50,23 @@ function CollectionColumn({ collection, filters, refreshInterval, onSelect }: Co
 
       <div className="record-list">
         {recordsQuery.data?.map((record) => (
-          <button className="record-card" key={record.id} onClick={() => onSelect(record)}>
-            <strong>{record.title}</strong>
-            <span>{record.id}</span>
-            <span>{record.provenance.tenantId ?? record.provenance.sourceType}</span>
-            <time>{new Date(record.createdAt).toLocaleString()}</time>
-          </button>
+          <article className="record-card" key={record.id}>
+            <button className="record-card-main" onClick={() => onSelect(record)}>
+              <strong>{record.title}</strong>
+              <span>{record.id}</span>
+              <span>{record.provenance.tenantId ?? record.provenance.sourceType}</span>
+              <time>{new Date(record.createdAt).toLocaleString()}</time>
+            </button>
+            {collection.id === 'tasks' && (
+              <button
+                className="signal-button"
+                disabled={signallingTaskId === record.id}
+                onClick={() => onSignalTaskUpdate(record.id)}
+              >
+                {signallingTaskId === record.id ? 'Signalling…' : 'Signal update'}
+              </button>
+            )}
+          </article>
         ))}
       </div>
     </section>
@@ -53,9 +74,12 @@ function CollectionColumn({ collection, filters, refreshInterval, onSelect }: Co
 }
 
 export function OverviewPage() {
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<ProvenanceFilters>({ tenantId: '', tenantProcessId: '' });
   const [selectedRecord, setSelectedRecord] = useState<InspectionRecord | null>(null);
   const [pollMs, setPollMs] = useState(5000);
+  const [taskName, setTaskName] = useState('');
+  const [signallingTaskId, setSignallingTaskId] = useState<string | null>(null);
 
   const healthQuery = useQuery({
     queryKey: ['api-health'],
@@ -67,7 +91,30 @@ export function OverviewPage() {
     queryFn: inspectionApi.collections,
   });
 
+  const createTaskMutation = useMutation({
+    mutationFn: inspectionApi.createTask,
+    onSuccess: async () => {
+      setTaskName('');
+      await queryClient.invalidateQueries({ queryKey: ['inspection-records', 'tasks'] });
+    },
+  });
+
+  const signalUpdateMutation = useMutation({
+    mutationFn: inspectionApi.signalTaskUpdate,
+    onMutate: (taskId) => setSignallingTaskId(taskId),
+    onSettled: async () => {
+      setSignallingTaskId(null);
+      await queryClient.invalidateQueries({ queryKey: ['inspection-records', 'task-update-signals'] });
+    },
+  });
+
   const refreshInterval = useMemo(() => pollMs > 0 ? pollMs : false, [pollMs]);
+
+  function submitTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = taskName.trim();
+    if (name) createTaskMutation.mutate(name);
+  }
 
   return (
     <main className="app-shell">
@@ -82,6 +129,24 @@ export function OverviewPage() {
           {healthQuery.isSuccess ? 'API connected' : 'API unavailable'}
         </div>
       </header>
+
+      <section className="task-actions">
+        <form onSubmit={submitTask}>
+          <label>
+            New task
+            <input
+              value={taskName}
+              placeholder="Task name"
+              onChange={(event) => setTaskName(event.target.value)}
+            />
+          </label>
+          <button disabled={!taskName.trim() || createTaskMutation.isPending}>
+            {createTaskMutation.isPending ? 'Creating…' : 'Create task'}
+          </button>
+        </form>
+        {createTaskMutation.isError && <span className="action-error">{createTaskMutation.error.message}</span>}
+        {signalUpdateMutation.isError && <span className="action-error">{signalUpdateMutation.error.message}</span>}
+      </section>
 
       <section className="toolbar">
         <label>
@@ -126,6 +191,8 @@ export function OverviewPage() {
               filters={filters}
               refreshInterval={refreshInterval}
               onSelect={setSelectedRecord}
+              onSignalTaskUpdate={(taskId) => signalUpdateMutation.mutate(taskId)}
+              signallingTaskId={signallingTaskId}
             />
           ))}
         </div>

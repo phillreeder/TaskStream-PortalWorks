@@ -3,7 +3,7 @@ export type HealthResponse = {
   service: string;
 };
 
-export type InspectionCollectionId = 'tasks' | 'entity-structure-versions';
+export type InspectionCollectionId = 'tasks' | 'task-update-signals' | 'task-events' | 'planner-queue' | 'entity-structure-versions';
 
 export type InspectionCollection = {
   id: InspectionCollectionId;
@@ -15,7 +15,7 @@ export type InspectionProvenance = {
   tenantId?: string;
   tenantProcessId?: string;
   entityType?: string;
-  sourceType: 'tenant-process' | 'system-registration';
+  sourceType: 'tenant-process' | 'task-update-signal' | 'task-event' | 'planner-queue' | 'system-registration';
 };
 
 export type InspectionRecord = {
@@ -31,4 +31,13 @@ export type InspectionRecord = {
 export type ProvenanceFilters = {
   tenantId: string;
   tenantProcessId: string;
+};
+
+export type TaskUpdateSignal = {
+  id: string;
+  taskId: string;
+  tenantId: string;
+  tenantProcessId: string;
+  status: 'queued';
+  createdAt: string;
 };

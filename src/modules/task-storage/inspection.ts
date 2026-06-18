@@ -2,9 +2,12 @@ import type { TaskStorageGateway } from '../../tenants/IEBBeta/TenantProcesses/T
 import type {
   EntityStructureVersion,
   StoredTask,
+  PlannerQueueItem,
+  TaskEvent,
+  TaskUpdateSignal,
 } from '../../tenants/IEBBeta/TenantProcesses/Test1/task-storage/types.js';
 
-export type InspectionCollectionId = 'tasks' | 'entity-structure-versions';
+export type InspectionCollectionId = 'tasks' | 'task-update-signals' | 'task-events' | 'planner-queue' | 'entity-structure-versions';
 
 export type InspectionCollection = {
   id: InspectionCollectionId;
@@ -16,7 +19,7 @@ export type InspectionProvenance = {
   tenantId?: string;
   tenantProcessId?: string;
   entityType?: string;
-  sourceType: 'tenant-process' | 'system-registration';
+  sourceType: 'tenant-process' | 'task-update-signal' | 'task-event' | 'planner-queue' | 'system-registration';
 };
 
 export type InspectionRecord = {
@@ -41,6 +44,21 @@ const collections: InspectionCollection[] = [
     description: 'Stored task entities for the active tenant process.',
   },
   {
+    id: 'task-update-signals',
+    title: 'Task update queue',
+    description: 'Queued signals requesting downstream task update processing.',
+  },
+  {
+    id: 'task-events',
+    title: 'Task events',
+    description: 'Durable task mutation events awaiting or driving planning.',
+  },
+  {
+    id: 'planner-queue',
+    title: 'Planner queue',
+    description: 'SQLite-backed planning work claimed by the planner worker.',
+  },
+  {
     id: 'entity-structure-versions',
     title: 'Entity structures',
     description: 'Registered entity structure versions used by stored records.',
@@ -57,13 +75,23 @@ export async function listInspectionRecords(
   filters: InspectionFilters,
 ): Promise<InspectionRecord[] | null> {
   if (collectionId === 'tasks') {
-    const tasks = await gateway.listTasks(filters);
-    return tasks.map(toTaskInspectionRecord);
+    return (await gateway.listTasks(filters)).map(toTaskInspectionRecord);
+  }
+
+  if (collectionId === 'task-update-signals') {
+    return (await gateway.listTaskUpdateSignals(filters)).map(toTaskUpdateSignalInspectionRecord);
+  }
+
+  if (collectionId === 'task-events') {
+    return (await gateway.listTaskEvents()).map(toTaskEventInspectionRecord);
+  }
+
+  if (collectionId === 'planner-queue') {
+    return (await gateway.listPlannerQueueItems()).map(toPlannerQueueInspectionRecord);
   }
 
   if (collectionId === 'entity-structure-versions') {
-    const structures = await gateway.listEntityStructureVersions();
-    return structures.map(toStructureInspectionRecord);
+    return (await gateway.listEntityStructureVersions()).map(toStructureInspectionRecord);
   }
 
   return null;
@@ -86,6 +114,24 @@ function toTaskInspectionRecord(task: StoredTask): InspectionRecord {
   };
 }
 
+function toTaskUpdateSignalInspectionRecord(signal: TaskUpdateSignal): InspectionRecord {
+  return {
+    id: signal.id,
+    collectionId: 'task-update-signals',
+    title: `Update ${signal.taskId}`,
+    createdAt: signal.createdAt,
+    provenance: {
+      tenantId: signal.tenantId,
+      tenantProcessId: signal.tenantProcessId,
+      entityType: TASK_ENTITY_TYPE,
+      sourceType: 'task-update-signal',
+    },
+    data: signal as unknown as Record<string, unknown>,
+  };
+}
+
+const TASK_ENTITY_TYPE = 'Task';
+
 function toStructureInspectionRecord(structure: EntityStructureVersion): InspectionRecord {
   return {
     id: `${structure.entityType}:${structure.version}`,
@@ -97,5 +143,28 @@ function toStructureInspectionRecord(structure: EntityStructureVersion): Inspect
       sourceType: 'system-registration',
     },
     data: structure as unknown as Record<string, unknown>,
+  };
+}
+
+
+function toTaskEventInspectionRecord(event: TaskEvent): InspectionRecord {
+  return {
+    id: event.id,
+    collectionId: 'task-events',
+    title: `${event.eventType} ${event.taskId}`,
+    createdAt: event.occurredAt,
+    provenance: { entityType: event.entityStructureType, sourceType: 'task-event' },
+    data: event as unknown as Record<string, unknown>,
+  };
+}
+
+function toPlannerQueueInspectionRecord(item: PlannerQueueItem): InspectionRecord {
+  return {
+    id: item.id,
+    collectionId: 'planner-queue',
+    title: `${item.status} ${item.taskId}`,
+    createdAt: item.createdAt,
+    provenance: { entityType: 'PlannerQueueItem', sourceType: 'planner-queue' },
+    data: item as unknown as Record<string, unknown>,
   };
 }
