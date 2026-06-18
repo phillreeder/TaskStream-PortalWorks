@@ -707,6 +707,55 @@
         "testConcern": "flowOnly-result-and-trace-evidence",
         "runtimeSlice": "flowonly-runtime-spine-v1"
       }
+    },
+    {
+      "file": "src/tenants/IEBBeta/TenantProcesses/Test1/task-storage/__tests__/SqliteTaskStorageGateway.node.test.ts",
+      "labels": {
+        "verificationSet": "poc-event-worker-v1",
+        "tickets": [
+          "POC-EVENT-WORKER-001"
+        ],
+        "requirements": [
+          "REQ-FLP-001"
+        ],
+        "ownerType": "applicationPath",
+        "owner": "TaskStream POC event/queue/worker path",
+        "testConcern": "event-to-real-work lifecycle",
+        "runtimeSlice": "poc-event-worker"
+      }
+    },
+    {
+      "file": "src/poc/planning/__tests__/PlannerWorker.node.test.ts",
+      "labels": {
+        "verificationSet": "poc-event-worker-v1",
+        "tickets": [
+          "POC-EVENT-WORKER-001"
+        ],
+        "requirements": [
+          "REQ-FLP-001"
+        ],
+        "ownerType": "applicationPath",
+        "owner": "TaskStream POC event/queue/worker path",
+        "testConcern": "event-to-real-work lifecycle",
+        "runtimeSlice": "poc-event-worker"
+      }
+    },
+    {
+      "file": "src/modules/API/__tests__/TaskApi.node.test.ts",
+      "testName": "[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle through inspection APIs",
+      "labels": {
+        "verificationSet": "poc-event-worker-v1",
+        "tickets": [
+          "POC-EVENT-WORKER-001"
+        ],
+        "requirements": [
+          "REQ-FLP-001"
+        ],
+        "ownerType": "applicationPath",
+        "owner": "TaskStream POC event/queue/worker path",
+        "testConcern": "event-to-real-work lifecycle",
+        "runtimeSlice": "poc-event-worker"
+      }
     }
   ],
   "documentedTicketsWithoutExistingTests": [

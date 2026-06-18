@@ -17,37 +17,77 @@ export const TASK_STRUCTURE = {
 } as const satisfies PocEntityStructure;
 
 export const TASK_EVENT_STRUCTURE = {
-  entityType: 'TaskEvent',
+  entityType: 'Event',
   version: 1,
   structure: {
     type: 'object',
-    required: ['taskId', 'eventType', 'entityStructureType', 'entityStructureVersion', 'occurredAt'],
+    required: ['eventType', 'sourceEntityType', 'sourceEntityId', 'entityStructureType', 'entityStructureVersion', 'payload', 'occurredAt'],
     properties: {
-      taskId: { type: 'string' },
-      eventType: { enum: ['task-created', 'task-update-signalled'] },
+      eventType: { type: 'string' },
+      sourceEntityType: { type: 'string' },
+      sourceEntityId: { type: 'string' },
       entityStructureType: { type: 'string' },
       entityStructureVersion: { type: 'integer' },
+      payload: { type: 'object' },
       occurredAt: { type: 'string' },
     },
   },
 } as const satisfies PocEntityStructure;
 
-export const PLANNER_QUEUE_ITEM_STRUCTURE = {
-  entityType: 'PlannerQueueItem',
+export const EVENT_REACTION_STRUCTURE = {
+  entityType: 'EventReaction',
   version: 1,
   structure: {
     type: 'object',
-    required: ['eventId', 'taskId', 'status', 'attemptCount', 'availableAt', 'createdAt'],
+    required: ['id', 'eventType', 'queueIntentType', 'handlerKey', 'workType', 'createdAt'],
     properties: {
-      eventId: { type: 'string' },
-      taskId: { type: 'string' },
+      id: { type: 'string' },
+      eventType: { type: 'string' },
+      queueIntentType: { type: 'string' },
+      handlerKey: { type: 'string' },
+      workType: { type: 'string' },
+      createdAt: { type: 'string' },
+    },
+  },
+} as const satisfies PocEntityStructure;
+
+export const PLANNER_QUEUE_ITEM_STRUCTURE = {
+  entityType: 'PersistentQueueItem',
+  version: 1,
+  structure: {
+    type: 'object',
+    required: ['sourceEventId', 'eventReactionId', 'intentType', 'handlerKey', 'status', 'attemptCount', 'availableAt', 'createdAt'],
+    properties: {
+      sourceEventId: { type: 'string' },
+      eventReactionId: { type: 'string' },
+      intentType: { type: 'string' },
+      handlerKey: { type: 'string' },
       status: { enum: ['queued', 'claimed', 'completed', 'failed'] },
       attemptCount: { type: 'integer' },
       availableAt: { type: 'string' },
       claimedBy: { type: ['string', 'null'] },
       claimedAt: { type: ['string', 'null'] },
+      completedAt: { type: ['string', 'null'] },
+      failedAt: { type: ['string', 'null'] },
       lastError: { type: ['string', 'null'] },
-      processAction: { type: ['string', 'null'] },
+      createdAt: { type: 'string' },
+    },
+  },
+} as const satisfies PocEntityStructure;
+
+export const PROCESS_WORK_ENTRY_STRUCTURE = {
+  entityType: 'ProcessWorkEntry',
+  version: 1,
+  structure: {
+    type: 'object',
+    required: ['id', 'sourceEventId', 'sourceQueueItemId', 'workType', 'status', 'payload', 'createdAt'],
+    properties: {
+      id: { type: 'string' },
+      sourceEventId: { type: 'string' },
+      sourceQueueItemId: { type: 'string' },
+      workType: { type: 'string' },
+      status: { type: 'string' },
+      payload: { type: 'object' },
       createdAt: { type: 'string' },
     },
   },
@@ -70,6 +110,8 @@ export const ENTITY_STRUCTURE_VERSION_STRUCTURE = {
 export const POC_ENTITY_STRUCTURES = [
   TASK_STRUCTURE,
   TASK_EVENT_STRUCTURE,
+  EVENT_REACTION_STRUCTURE,
   PLANNER_QUEUE_ITEM_STRUCTURE,
+  PROCESS_WORK_ENTRY_STRUCTURE,
   ENTITY_STRUCTURE_VERSION_STRUCTURE,
 ] as const;

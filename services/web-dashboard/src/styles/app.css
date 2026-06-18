@@ -36,6 +36,9 @@ button { cursor: pointer; }
 .record-card { display: grid; gap: 4px; text-align: left; color: #dfe6ec; background: #151d25; border: 1px solid #27323d; border-radius: 7px; padding: 11px; }
 .record-card:hover { border-color: #566675; background: #19232c; }
 .record-card span, .record-card time { color: #8794a1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.relationship-strip { display: grid; gap: 4px; margin-top: 4px; }
+.relationship-strip span { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 7px; align-items: baseline; color: #9eabb7; }
+.relationship-strip b { color: #d5dde5; font-size: 11px; font-weight: 700; text-transform: uppercase; }
 .state-message { padding: 16px; color: #8794a1; }
 .state-message.error { color: #e0a8a8; }
 

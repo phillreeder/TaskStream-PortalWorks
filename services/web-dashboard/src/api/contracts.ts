@@ -3,7 +3,13 @@ export type HealthResponse = {
   service: string;
 };
 
-export type InspectionCollectionId = 'tasks' | 'task-update-signals' | 'task-events' | 'planner-queue' | 'entity-structure-versions';
+export type InspectionCollectionId =
+  | 'tasks'
+  | 'task-update-signals'
+  | 'events'
+  | 'persistent-queue-items'
+  | 'process-work-entries'
+  | 'entity-structure-versions';
 
 export type InspectionCollection = {
   id: InspectionCollectionId;
@@ -15,7 +21,7 @@ export type InspectionProvenance = {
   tenantId?: string;
   tenantProcessId?: string;
   entityType?: string;
-  sourceType: 'tenant-process' | 'task-update-signal' | 'task-event' | 'planner-queue' | 'system-registration';
+  sourceType: 'tenant-process' | 'task-update-signal' | 'event' | 'persistent-queue' | 'process-work' | 'system-registration';
 };
 
 export type InspectionRecord = {
