@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { createTaskApi } from '../TaskApi.js';
-import { SqliteTaskStorageGateway } from '../../../tenants/IEBBeta/TenantProcesses/Test1/task-storage/SqliteTaskStorageGateway.js';
+import { POC_TENANT_PROCESS_IDS } from '../../../poc/tenant-process/PocTenantProcess.js';
+import { PlannerWorker } from '../../../poc/planning/PlannerWorker.js';
+import { SqliteTaskStorageGateway } from '../../../poc/tenant-process/Test1/task-storage/SqliteTaskStorageGateway.js';
 
 async function startApi(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'taskstream-task-api-'));
@@ -59,19 +61,8 @@ test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle t
     body: JSON.stringify({ name: 'Inspectable task' }),
   });
   const created = await createResponse.json() as { id: string };
-  const claimed = await gateway.claimNextPersistentQueueItem('api-test-worker');
-  assert.ok(claimed);
-  await gateway.createProcessWorkEntry({
-    sourceEventId: claimed.sourceEventId,
-    sourceQueueItemId: claimed.id,
-    workType: 'process-channel-result',
-    status: 'materialized',
-    payload: {
-      processAction: 'process-channel-outcome-pending-flow-decision',
-      unresolvedDownstreamAction: 'start-flow-or-process-flow-undecided',
-    },
-  });
-  await gateway.completePersistentQueueItem(claimed.id);
+  const completed = await new PlannerWorker('api-test-worker', gateway).runOnce();
+  assert.ok(completed);
 
   const healthResponse = await fetch(`${baseUrl}/api/health`);
   const collectionsResponse = await fetch(`${baseUrl}/api/inspection/collections`);
@@ -95,8 +86,12 @@ test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle t
   const workResponse = await fetch(`${baseUrl}/api/inspection/collections/process-work-entries/records`);
   const workEntries = await workResponse.json() as Array<{
     id: string;
-    data: { workType: string; sourceEventId: string; sourceQueueItemId: string };
+    data: { workType: string; sourceEventId: string; sourceQueueItemId: string; tenantProcessId: string; channelId: string; flowId: string; executionId: string };
   }>;
+  const tracesResponse = await fetch(`${baseUrl}/api/inspection/collections/system-trace-records/records`);
+  const traces = await tracesResponse.json() as Array<{ data: { operation: string; sourceQueueItemId: string } }>;
+  const executionLogResponse = await fetch(`${baseUrl}/api/inspection/execution-log/${created.id}`);
+  const executionLog = await executionLogResponse.json() as Array<{ kind: string; stage: string; identifiers: Record<string, string> }>;
   const structuresResponse = await fetch(`${baseUrl}/api/inspection/collections/entity-structure-versions/records`);
   const structures = await structuresResponse.json() as Array<{ title: string; provenance: { sourceType: string } }>;
 
@@ -107,25 +102,61 @@ test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle t
     'events',
     'persistent-queue-items',
     'process-work-entries',
+    'system-trace-records',
     'entity-structure-versions',
   ]);
   assert.equal(tasks[0]?.title, 'Inspectable task');
   assert.equal(tasks[0]?.provenance.tenantId, 'IEBBeta');
   assert.equal(events[0]?.data.eventType, 'task.created');
   assert.equal(events[0]?.data.sourceEntityId, created.id);
-  assert.equal(events[0]?.id, claimed.sourceEventId);
-  assert.deepEqual(events[0]?.data.relationship.queueItemIds, [claimed.id]);
+  assert.equal(events[0]?.id, completed.sourceEventId);
+  assert.deepEqual(events[0]?.data.relationship.queueItemIds, [completed.id]);
   assert.deepEqual(events[0]?.data.relationship.queueStatuses, ['completed']);
   assert.deepEqual(events[0]?.data.relationship.workEntryIds, [workEntries[0]?.id]);
-  assert.equal(queueItems[0]?.id, claimed.id);
+  assert.equal(queueItems[0]?.id, completed.id);
   assert.equal(queueItems[0]?.data.status, 'completed');
   assert.equal(queueItems[0]?.data.relationship.sourceEventId, events[0]?.id);
   assert.equal(queueItems[0]?.data.relationship.workEntryId, workEntries[0]?.id);
   assert.equal(workEntries[0]?.data.workType, 'process-channel-result');
   assert.equal(workEntries[0]?.data.sourceEventId, events[0]?.id);
-  assert.equal(workEntries[0]?.data.sourceQueueItemId, claimed.id);
+  assert.equal(workEntries[0]?.data.sourceQueueItemId, completed.id);
+  assert.equal(workEntries[0]?.data.tenantProcessId, POC_TENANT_PROCESS_IDS.tenantProcessId);
+  assert.equal(workEntries[0]?.data.channelId, POC_TENANT_PROCESS_IDS.channelId);
+  assert.equal(workEntries[0]?.data.flowId, POC_TENANT_PROCESS_IDS.flowId);
+  assert.ok(workEntries[0]?.data.executionId);
+  assert.ok(traces.some((trace) => trace.data.operation === 'poc.tenantprocess.work-entry.confirmed'));
+  assert.equal(traces.at(-1)?.data.sourceQueueItemId, completed.id);
+  assert.ok(executionLog.some((record) => record.kind === 'system-trace' && record.stage === 'poc.tenantprocess.work-entry.confirmed'));
+  assert.ok(executionLog.some((record) => record.kind === 'domain-record' && record.identifiers.workEntryId === workEntries[0]?.id));
   assert.ok(structures.some((record) => record.title === 'Task v1'));
   assert.equal(structures[0]?.provenance.sourceType, 'system-registration');
+});
+
+test('POC reset route clears lifecycle data and restores registered structures', async (t) => {
+  const { baseUrl } = await startApi(t);
+  await fetch(`${baseUrl}/api/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Disposable task' }),
+  });
+
+  const resetResponse = await fetch(`${baseUrl}/api/poc/reset-database`, { method: 'POST' });
+  const resetBody = await resetResponse.json() as { reset: boolean };
+  const tasks = await (await fetch(`${baseUrl}/api/inspection/collections/tasks/records`)).json() as unknown[];
+  const events = await (await fetch(`${baseUrl}/api/inspection/collections/events/records`)).json() as unknown[];
+  const queueItems = await (await fetch(`${baseUrl}/api/inspection/collections/persistent-queue-items/records`)).json() as unknown[];
+  const workEntries = await (await fetch(`${baseUrl}/api/inspection/collections/process-work-entries/records`)).json() as unknown[];
+  const traces = await (await fetch(`${baseUrl}/api/inspection/collections/system-trace-records/records`)).json() as unknown[];
+  const structures = await (await fetch(`${baseUrl}/api/inspection/collections/entity-structure-versions/records`)).json() as unknown[];
+
+  assert.equal(resetResponse.status, 200);
+  assert.equal(resetBody.reset, true);
+  assert.deepEqual(tasks, []);
+  assert.deepEqual(events, []);
+  assert.deepEqual(queueItems, []);
+  assert.deepEqual(workEntries, []);
+  assert.deepEqual(traces, []);
+  assert.equal(structures.length, 6);
 });
 
 test('API process no longer serves browser assets', async (t) => {

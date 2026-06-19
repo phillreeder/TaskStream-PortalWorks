@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { inspectionApi } from '../../api/inspectionApi';
 import type {
+  ExecutionLogRecord,
   InspectionCollection,
   InspectionCollectionId,
   InspectionRecord,
@@ -29,6 +30,7 @@ const lifecycleOrder: InspectionCollectionId[] = [
   'events',
   'persistent-queue-items',
   'process-work-entries',
+  'system-trace-records',
   'task-update-signals',
   'entity-structure-versions',
 ];
@@ -127,6 +129,18 @@ function columnsFor(collectionId: InspectionCollectionId): TableColumn[] {
     ];
   }
 
+  if (collectionId === 'system-trace-records') {
+    return [
+      commonId,
+      { key: 'stage', label: 'Stage', render: (record) => text(record, 'operation') },
+      { key: 'level', label: 'Level', render: (record) => text(record, 'severity') },
+      { key: 'event', label: 'Source event', render: (record) => <IdCell id={text(record, 'sourceEventId')} /> },
+      { key: 'queue', label: 'Source queue', render: (record) => <IdCell id={text(record, 'sourceQueueItemId')} /> },
+      { key: 'execution', label: 'Execution', render: (record) => text(record, 'executionId') },
+      { key: 'occurred', label: 'Occurred', render: (record) => <DateCell date={record.createdAt} /> },
+    ];
+  }
+
   if (collectionId === 'task-update-signals') {
     return [
       commonId,
@@ -162,7 +176,7 @@ function CollectionTable({
   const columns = columnsFor(collection.id);
 
   return (
-    <section className={`collection-table collection-${collection.id}`}>
+    <section id={`collection-${collection.id}`} className={`collection-table collection-${collection.id}`}>
       <header className="collection-header">
         <div>
           <h2>{collection.title}</h2>
@@ -213,6 +227,59 @@ function CollectionTable({
   );
 }
 
+export function executionLogJsonl(records: readonly ExecutionLogRecord[]): string {
+  return records.map((record) => JSON.stringify(record)).join('\n');
+}
+
+function copyText(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(value);
+  }
+  return Promise.reject(new Error('Clipboard API is unavailable.'));
+}
+
+function ExecutionLogView({ records, isLoading, isError, error }: {
+  records: readonly ExecutionLogRecord[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  error: Error | null;
+}) {
+  return (
+    <section className="execution-log">
+      <header>
+        <h3>End-to-end execution log</h3>
+        <p>Structured SystemTrace, queue, and durable records ordered for review.</p>
+      </header>
+      {isLoading && <div className="state-message">Loading execution log…</div>}
+      {isError && <div className="state-message error">{error?.message ?? 'Unable to load execution log.'}</div>}
+      {records?.length === 0 && <div className="state-message">No execution records found for this selection.</div>}
+      {!!records?.length && (
+        <div className="execution-records">
+          {records.map((record) => (
+            <article className={`execution-record ${record.kind}`} key={record.id}>
+              <div className="execution-record-top">
+                <div>
+                  <p className="execution-stage">{record.stage}</p>
+                  <p className="execution-message">{record.message}</p>
+                </div>
+                <button className="copy-record" onClick={() => void copyText(JSON.stringify(record, null, 2))}>Copy</button>
+              </div>
+              <div className="execution-meta">
+                <span>{record.kind}</span>
+                <span>{record.level}</span>
+                <time dateTime={record.timestamp}>{new Date(record.timestamp).toLocaleString()}</time>
+                {Object.entries(record.identifiers).map(([key, id]) => (
+                  <span key={key}>{key}: <code title={id}>{compactId(id)}</code></span>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 const dashboardTableStyles = String.raw`
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -249,8 +316,23 @@ button:disabled { cursor: wait; opacity: .58; }
 .health-dot { width: 9px; height: 9px; border-radius: 50%; background: #77818d; box-shadow: 0 0 0 4px rgb(119 129 141 / 12%); }
 .health.healthy .health-dot { background: #79c28a; box-shadow: 0 0 0 4px rgb(121 194 138 / 12%); }
 .health.unhealthy .health-dot { background: #d27d75; }
+.header-controls { display: grid; justify-items: end; gap: 10px; }
+.poc-menu { position: relative; }
+.poc-menu summary { list-style: none; min-height: 34px; display: inline-flex; align-items: center; border: 1px solid #364454; border-radius: 8px; padding: 6px 10px; color: #c9d1da; background: #0f151d; cursor: pointer; font-size: .76rem; font-weight: 700; }
+.poc-menu summary::-webkit-details-marker { display: none; }
+.poc-menu-panel { position: absolute; right: 0; z-index: 5; width: 280px; margin-top: 8px; padding: 14px; border: 1px solid #3a4654; border-radius: 10px; background: #121821; box-shadow: 0 18px 40px rgb(0 0 0 / 35%); }
+.poc-menu-panel p { margin: 0 0 12px; color: #8f9baa; font-size: .76rem; line-height: 1.4; }
+.poc-menu-panel .action-error, .poc-menu-panel .action-success { display: block; margin-top: 10px; font-size: .75rem; }
+.action-success { color: #9fd0aa; }
+.danger-button { width: 100%; background: #7f332f; border-color: #a74d47; color: #f6dedb; }
+.danger-button:hover { background: #91403b; }
 
-.task-actions, .toolbar { margin-top: 14px; padding: 16px 18px; border-radius: 12px; }
+.task-actions, .toolbar, .table-nav { margin-top: 14px; padding: 16px 18px; border-radius: 12px; }
+.table-nav { border: 1px solid #27313d; background: #121821; box-shadow: 0 14px 32px rgb(0 0 0 / 18%); }
+.table-nav h2 { margin: 0 0 10px; font-size: .9rem; }
+.table-nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.table-nav a { display: inline-flex; align-items: center; min-height: 32px; border: 1px solid #364454; border-radius: 8px; padding: 5px 9px; color: #c9d1da; text-decoration: none; font-size: .74rem; font-weight: 700; background: #0f151d; }
+.table-nav a:hover { border-color: #b89b52; color: #e7d59e; }
 .task-actions form, .toolbar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
 label { display: grid; gap: 6px; color: #9ba8b7; font-size: .78rem; font-weight: 650; }
 input, select {
@@ -275,7 +357,7 @@ button {
 .secondary-button, .table-action { background: transparent; color: #c9d1da; border-color: #364454; }
 .action-error, .state-message.error { color: #e49a92; }
 
-.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; margin-top: 14px; align-items: start; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 14px; margin-top: 14px; align-items: start; }
 .collection-stack { display: grid; gap: 14px; min-width: 0; }
 .collection-table { border-radius: 12px; overflow: hidden; }
 .collection-header { display: flex; justify-content: space-between; gap: 20px; padding: 16px 18px; border-bottom: 1px solid #27313d; }
@@ -310,7 +392,24 @@ td time { color: #9aa7b5; white-space: nowrap; }
 .record-inspector dl { display: grid; grid-template-columns: 82px minmax(0, 1fr); margin: 0; padding: 14px 16px; gap: 8px 12px; border-bottom: 1px solid #27313d; font-size: .76rem; }
 .record-inspector dt { color: #7f8d9d; }
 .record-inspector dd { margin: 0; overflow-wrap: anywhere; }
-.record-inspector pre { margin: 0; padding: 16px; overflow: auto; max-height: calc(100vh - 270px); color: #bdc8d3; background: #0d131b; font-size: .72rem; line-height: 1.45; }
+.inspector-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid #27313d; }
+.inspector-actions button { min-height: 30px; padding: 4px 9px; background: transparent; color: #c9d1da; border-color: #364454; font-size: .72rem; }
+.record-inspector pre { margin: 0; padding: 16px; overflow: auto; max-height: 280px; color: #bdc8d3; background: #0d131b; font-size: .72rem; line-height: 1.45; }
+.execution-log { border-top: 1px solid #27313d; }
+.execution-log header { padding: 13px 16px; border-bottom: 1px solid #27313d; }
+.execution-log h3 { margin: 0 0 4px; font-size: .86rem; }
+.execution-log p { margin: 0; color: #8794a4; font-size: .74rem; }
+.execution-records { display: grid; gap: 8px; padding: 12px; max-height: 430px; overflow: auto; }
+.execution-record { border: 1px solid #2b3744; border-radius: 8px; padding: 10px; background: #0f151d; }
+.execution-record.system-trace { border-left: 3px solid #7fa9d8; }
+.execution-record.domain-record { border-left: 3px solid #9fd0aa; }
+.execution-record.queue-record { border-left: 3px solid #e0c37a; }
+.execution-record-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.execution-stage { margin: 0; color: #e2e8ee; font-size: .76rem; font-weight: 800; overflow-wrap: anywhere; }
+.execution-message { margin: 5px 0 0; color: #9eabba; font-size: .72rem; overflow-wrap: anywhere; }
+.execution-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; color: #8492a2; font-size: .68rem; }
+.execution-meta code { color: #c6d0da; }
+.copy-record { min-height: 28px; padding: 3px 8px; background: transparent; color: #c9d1da; border-color: #364454; font-size: .68rem; }
 .state-message { padding: 16px 18px; color: #8593a2; font-size: .82rem; }
 
 @media (max-width: 1080px) {
@@ -322,6 +421,9 @@ td time { color: #9aa7b5; white-space: nowrap; }
 @media (max-width: 680px) {
   .app-shell { padding: 12px; }
   .app-header { flex-direction: column; }
+  .header-controls { width: 100%; justify-items: stretch; }
+  .poc-menu summary { justify-content: center; }
+  .poc-menu-panel { position: static; width: 100%; }
   .toolbar label, .task-actions label { width: 100%; }
   .toolbar input, .toolbar select, .task-actions input { width: 100%; }
 }
@@ -335,9 +437,17 @@ export function OverviewPage() {
   const [pollMs, setPollMs] = useState(5000);
   const [taskName, setTaskName] = useState('');
   const [signallingTaskId, setSignallingTaskId] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   const healthQuery = useQuery({ queryKey: ['api-health'], queryFn: inspectionApi.health, refetchInterval: 5000 });
   const collectionsQuery = useQuery({ queryKey: ['inspection-collections'], queryFn: inspectionApi.collections });
+  const refreshInterval = useMemo(() => pollMs > 0 ? pollMs : false, [pollMs]);
+  const executionLogQuery = useQuery({
+    queryKey: ['inspection-execution-log', selectedRecord?.id],
+    queryFn: () => inspectionApi.executionLog(selectedRecord?.id ?? ''),
+    enabled: Boolean(selectedRecord),
+    refetchInterval: selectedRecord ? refreshInterval : false,
+  });
 
   const orderedCollections = useMemo(() => {
     const collections = collectionsQuery.data ?? [];
@@ -361,7 +471,23 @@ export function OverviewPage() {
     },
   });
 
-  const refreshInterval = useMemo(() => pollMs > 0 ? pollMs : false, [pollMs]);
+  const resetDatabaseMutation = useMutation({
+    mutationFn: inspectionApi.resetDatabase,
+    onSuccess: async () => {
+      setSelectedRecord(null);
+      setResetMessage('POC database reset.');
+      await queryClient.invalidateQueries({ queryKey: ['inspection-records'] });
+      await queryClient.invalidateQueries({ queryKey: ['inspection-collections'] });
+    },
+  });
+
+  function requestDatabaseReset() {
+    setResetMessage(null);
+    const confirmed = window.confirm(
+      'Reset the entire POC database? This permanently deletes all tasks, events, queue items, work entries, and update signals.',
+    );
+    if (confirmed) resetDatabaseMutation.mutate();
+  }
 
   function submitTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -375,13 +501,30 @@ export function OverviewPage() {
       <main className="app-shell">
       <header className="app-header">
         <div>
-          <p className="eyebrow">TaskStream POC</p>
+        <p className="eyebrow">TaskStream POC</p>
           <h1>Lifecycle storage inspector</h1>
-          <p>Trace Task → Event → persistent queue → worker-materialized work across the SQLite POC.</p>
+          <p>Trace Task → Event → persistent queue → TenantProcess-owned work across the SQLite POC.</p>
         </div>
-        <div className={`health ${healthQuery.isSuccess ? 'healthy' : 'unhealthy'}`}>
-          <span className="health-dot" />
-          {healthQuery.isSuccess ? 'API connected' : 'API unavailable'}
+        <div className="header-controls">
+          <div className={`health ${healthQuery.isSuccess ? 'healthy' : 'unhealthy'}`}>
+            <span className="health-dot" />
+            {healthQuery.isSuccess ? 'API connected' : 'API unavailable'}
+          </div>
+          <details className="poc-menu">
+            <summary>POC controls</summary>
+            <div className="poc-menu-panel">
+              <p>Destructive maintenance actions for the local POC environment.</p>
+              <button
+                className="danger-button"
+                disabled={resetDatabaseMutation.isPending}
+                onClick={requestDatabaseReset}
+              >
+                {resetDatabaseMutation.isPending ? 'Resetting…' : 'Reset database'}
+              </button>
+              {resetMessage && <span className="action-success">{resetMessage}</span>}
+              {resetDatabaseMutation.isError && <span className="action-error">{resetDatabaseMutation.error.message}</span>}
+            </div>
+          </details>
         </div>
       </header>
 
@@ -420,6 +563,17 @@ export function OverviewPage() {
         <button className="secondary-button" onClick={() => setFilters({ tenantId: '', tenantProcessId: '' })}>Clear provenance</button>
       </section>
 
+      {!!orderedCollections.length && (
+        <nav className="table-nav" aria-label="Inspection tables">
+          <h2>Inspection tables</h2>
+          <div className="table-nav-links">
+            {orderedCollections.map((collection) => (
+              <a key={collection.id} href={`#collection-${collection.id}`}>{collection.title}</a>
+            ))}
+          </div>
+        </nav>
+      )}
+
       {collectionsQuery.isLoading && <div className="state-message">Loading inspection collections…</div>}
       {collectionsQuery.isError && <div className="state-message error">{collectionsQuery.error.message}</div>}
 
@@ -452,7 +606,28 @@ export function OverviewPage() {
                 <dt>Tenant</dt><dd>{selectedRecord.provenance.tenantId ?? '—'}</dd>
                 <dt>Process</dt><dd>{selectedRecord.provenance.tenantProcessId ?? '—'}</dd>
               </dl>
+              <div className="inspector-actions">
+                <button onClick={() => void executionLogQuery.refetch()}>Refresh log</button>
+                <button
+                  disabled={!executionLogQuery.data?.length}
+                  onClick={() => void copyText(JSON.stringify(executionLogQuery.data ?? [], null, 2))}
+                >
+                  Copy JSON
+                </button>
+                <button
+                  disabled={!executionLogQuery.data?.length}
+                  onClick={() => void copyText(executionLogJsonl(executionLogQuery.data ?? []))}
+                >
+                  Copy JSONL
+                </button>
+              </div>
               <pre>{JSON.stringify(selectedRecord.data, null, 2)}</pre>
+              <ExecutionLogView
+                records={executionLogQuery.data}
+                isLoading={executionLogQuery.isLoading}
+                isError={executionLogQuery.isError}
+                error={executionLogQuery.error}
+              />
             </>
           ) : (
             <div className="state-message">Select any table row to inspect its raw API projection.</div>

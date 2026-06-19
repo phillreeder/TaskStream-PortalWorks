@@ -9,6 +9,7 @@ export type InspectionCollectionId =
   | 'events'
   | 'persistent-queue-items'
   | 'process-work-entries'
+  | 'system-trace-records'
   | 'entity-structure-versions';
 
 export type InspectionCollection = {
@@ -31,6 +32,17 @@ export type InspectionRecord = {
   createdAt: string;
   updatedAt?: string;
   provenance: InspectionProvenance;
+  data: Record<string, unknown>;
+};
+
+export type ExecutionLogRecord = {
+  id: string;
+  kind: 'domain-record' | 'queue-record' | 'system-trace';
+  timestamp: string;
+  level: string;
+  stage: string;
+  message: string;
+  identifiers: Record<string, string>;
   data: Record<string, unknown>;
 };
 

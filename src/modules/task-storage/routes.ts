@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { TaskStorageGateway } from '../../tenants/IEBBeta/TenantProcesses/Test1/task-storage/TaskStorageGateway.js';
+import type { TaskStorageGateway } from '../../poc/tenant-process/Test1/task-storage/TaskStorageGateway.js';
 import {
   listInspectionCollections,
+  listExecutionLogRecords,
   listInspectionRecords,
   type InspectionFilters,
 } from './inspection.js';
@@ -14,8 +15,20 @@ export async function routeTaskStorageRequest(
 ): Promise<boolean> {
   const method = request.method ?? 'GET';
 
+  if (method === 'POST' && url.pathname === '/api/poc/reset-database') {
+    await gateway.resetDatabase();
+    sendJson(response, 200, { reset: true });
+    return true;
+  }
+
   if (method === 'GET' && url.pathname === '/api/inspection/collections') {
     sendJson(response, 200, listInspectionCollections());
+    return true;
+  }
+
+  const executionLogMatch = /^\/api\/inspection\/execution-log\/([^/]+)$/.exec(url.pathname);
+  if (method === 'GET' && executionLogMatch) {
+    sendJson(response, 200, await listExecutionLogRecords(gateway, decodeURIComponent(executionLogMatch[1])));
     return true;
   }
 

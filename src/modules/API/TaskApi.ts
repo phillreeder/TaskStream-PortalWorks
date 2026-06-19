@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { routeTaskStorageRequest } from '../task-storage/routes.js';
-import type { TaskStorageGateway } from '../../tenants/IEBBeta/TenantProcesses/Test1/task-storage/TaskStorageGateway.js';
+import type { TaskStorageGateway } from '../../poc/tenant-process/Test1/task-storage/TaskStorageGateway.js';
 
 export function createTaskApi(gateway: TaskStorageGateway): Server {
   return createServer(async (request, response) => {

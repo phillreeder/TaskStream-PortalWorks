@@ -1,6 +1,7 @@
 import { getJson, postJson } from './httpClient';
 import type {
   HealthResponse,
+  ExecutionLogRecord,
   InspectionCollection,
   InspectionCollectionId,
   InspectionRecord,
@@ -25,6 +26,10 @@ export const inspectionApi = {
     return postJson(`/api/tasks/${encodeURIComponent(taskId)}/update-signals`);
   },
 
+  resetDatabase(): Promise<{ reset: true }> {
+    return postJson('/api/poc/reset-database');
+  },
+
   records(collectionId: InspectionCollectionId, filters: ProvenanceFilters): Promise<InspectionRecord[]> {
     const search = new URLSearchParams();
     if (filters.tenantId.trim()) search.set('tenantId', filters.tenantId.trim());
@@ -32,5 +37,9 @@ export const inspectionApi = {
 
     const query = search.size > 0 ? `?${search.toString()}` : '';
     return getJson(`/api/inspection/collections/${encodeURIComponent(collectionId)}/records${query}`);
+  },
+
+  executionLog(recordId: string): Promise<ExecutionLogRecord[]> {
+    return getJson(`/api/inspection/execution-log/${encodeURIComponent(recordId)}`);
   },
 };

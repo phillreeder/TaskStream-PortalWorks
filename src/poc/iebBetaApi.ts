@@ -1,11 +1,11 @@
 import { resolve } from 'node:path';
 import { createTaskApi } from '../modules/API/TaskApi.js';
-import { PlannerWorker, PocProcessChannelPlanner } from './planning/PlannerWorker.js';
-import { SqliteTaskStorageGateway } from '../tenants/IEBBeta/TenantProcesses/Test1/task-storage/SqliteTaskStorageGateway.js';
+import { PlannerWorker } from './planning/PlannerWorker.js';
+import { SqliteTaskStorageGateway } from './tenant-process/Test1/task-storage/SqliteTaskStorageGateway.js';
 
 const databasePath = resolve('temp-infra/storage/IEBBeta/Test1/task-storage.sqlite');
 const gateway = new SqliteTaskStorageGateway(databasePath);
-const worker = new PlannerWorker('poc-planner-worker-1', gateway, new PocProcessChannelPlanner());
+const worker = new PlannerWorker('poc-planner-worker-1', gateway);
 const server = createTaskApi(gateway);
 const port = Number(process.env.PORT ?? 3100);
 const pollIntervalMs = Number(process.env.PLANNER_WORKER_POLL_MS ?? 500);

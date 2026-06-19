@@ -13,6 +13,7 @@ WORK_ROOT="$PROJECT_ROOT/../graphify-work"
 WORK_SRC="$WORK_ROOT/src"
 GRAPH_OUTPUT_DIR="$WORK_SRC/graphify-out"
 REAL_GRAPH_DIR="$WORK_ROOT/graphify-out"
+REAL_GRAPH_FILE="$REAL_GRAPH_DIR/graph.json"
 LAST_UPDATE_FILE="$REAL_GRAPH_DIR/GRAPHIFY_LAST_GRAPH_UPDATE.md"
 
 sync_source() {
@@ -45,7 +46,7 @@ write_last_update_file() {
 
   updated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   commit="$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
-  graph_summary="$(node -e "const fs=require('fs'); const p=process.argv[1]; const g=JSON.parse(fs.readFileSync(p,'utf8')); const nodes=Array.isArray(g.nodes)?g.nodes.length:'unknown'; const links=Array.isArray(g.links)?g.links.length:(Array.isArray(g.edges)?g.edges.length:'unknown'); const communities=new Set((g.nodes||[]).map((n)=>n.community).filter((v)=>v!==undefined)).size; console.log(nodes + ' nodes, ' + links + ' links, ' + communities + ' communities');" "$REAL_GRAPH_DIR/graph.json" 2>/dev/null || echo "graph summary unavailable")"
+  graph_summary="$(node -e "const fs=require('fs'); const p=process.argv[1]; const g=JSON.parse(fs.readFileSync(p,'utf8')); const nodes=Array.isArray(g.nodes)?g.nodes.length:'unknown'; const links=Array.isArray(g.links)?g.links.length:(Array.isArray(g.edges)?g.edges.length:'unknown'); const communities=new Set((g.nodes||[]).map((n)=>n.community).filter((v)=>v!==undefined)).size; console.log(nodes + ' nodes, ' + links + ' links, ' + communities + ' communities');" "$REAL_GRAPH_FILE" 2>/dev/null || echo "graph summary unavailable")"
 
   {
     echo "# GRAPHIFY LAST GRAPH UPDATE"
@@ -78,7 +79,7 @@ run_in_work_root() {
 }
 
 build_or_update() {
-  if [ -f "$REAL_GRAPH_DIR/graph.json" ]; then
+  if [ -f "$REAL_GRAPH_FILE" ]; then
     graphify update "$WORK_SRC"
   else
     graphify extract "$WORK_SRC"
@@ -98,21 +99,21 @@ case "${1:-refresh}" in
 
   query)
     shift
-    run_in_work_src graphify query "$*"
+    run_in_work_src graphify query "$*" --graph "$REAL_GRAPH_FILE"
     ;;
 
   cluster)
     shift
-    run_in_work_root graphify cluster-only "$*"
+    run_in_work_root graphify cluster-only "${1:-$WORK_SRC}" --graph "$REAL_GRAPH_FILE"
     ;;
   explain)
     shift
-    run_in_work_src graphify explain "$*"
+    run_in_work_src graphify explain "$*" --graph "$REAL_GRAPH_FILE"
     ;;
 
   path)
     shift
-    run_in_work_src graphify path "$1" "$2"
+    run_in_work_src graphify path "$1" "$2" --graph "$REAL_GRAPH_FILE"
     ;;
 
   open)

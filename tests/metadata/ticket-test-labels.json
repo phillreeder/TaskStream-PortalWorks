@@ -756,6 +756,41 @@
         "testConcern": "event-to-real-work lifecycle",
         "runtimeSlice": "poc-event-worker"
       }
+    },
+    {
+      "file": "src/poc/planning/__tests__/PlannerWorker.node.test.ts",
+      "labels": {
+        "verificationSet": "poc-tenant-work-log-v1",
+        "tickets": [
+          "POC-TENANT-WORK-LOG-001"
+        ],
+        "requirements": [
+          "REQ-FLP-001",
+          "REQ-OBS-POC-001"
+        ],
+        "ownerType": "applicationPath",
+        "owner": "TaskStream POC planner/TenantProcess/log inspection path",
+        "testConcern": "real TenantProcess-owned work creation and end-to-end execution visibility",
+        "runtimeSlice": "poc-tenant-work-log"
+      }
+    },
+    {
+      "file": "src/modules/API/__tests__/TaskApi.node.test.ts",
+      "testName": "[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle through inspection APIs",
+      "labels": {
+        "verificationSet": "poc-tenant-work-log-v1",
+        "tickets": [
+          "POC-TENANT-WORK-LOG-001"
+        ],
+        "requirements": [
+          "REQ-FLP-001",
+          "REQ-OBS-POC-001"
+        ],
+        "ownerType": "applicationPath",
+        "owner": "TaskStream POC planner/TenantProcess/log inspection path",
+        "testConcern": "inspection API end-to-end execution visibility",
+        "runtimeSlice": "poc-tenant-work-log"
+      }
     }
   ],
   "documentedTicketsWithoutExistingTests": [
