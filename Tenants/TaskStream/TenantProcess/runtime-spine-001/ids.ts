@@ -1,0 +1,45 @@
+export const RUNTIME_SPINE_TENANT_PROCESS_IDS = {
+  tenantProcess: 'tenant-process.runtime-spine-001',
+  tenant: 'tenant.taskstream',
+  process: 'runtime-spine-001',
+  task: 'task.review-submission',
+  channel: 'channel.review-submission',
+  requests: {
+    startReview: 'request.review-submission.start',
+    autoDecision: 'request.review-submission.auto-decision',
+    summarizeReview: 'request.review-submission.summary',
+  },
+  stateDefinition: 'review-submission-state',
+  flows: {
+    startReview: 'flow.review-submission.start',
+    previewScore: 'flow.review-submission.preview-score',
+    flagReview: 'flow.review-submission.flag',
+    autoDecision: 'flow.review-submission.auto-decision',
+    summarizeReview: 'flow.review-submission.summary',
+    generateReviewArtifact: 'flow.review-submission.generate-artifact',
+  },
+  stos: {
+    startReview: 'sto.review-submission.start',
+    previewScore: 'sto.review-submission.preview-score',
+    flagReview: 'sto.review-submission.flag',
+    autoDecision: 'sto.review-submission.auto-decision',
+    summarizeReview: 'sto.review-submission.summary',
+    generateReviewArtifact: 'sto.review-submission.generate-artifact',
+  },
+  inputContracts: {
+    startReview: 'input.review-submission.start',
+    previewScore: 'input.review-submission.preview-score',
+    flagReview: 'input.review-submission.flag',
+  },
+  artifactContracts: {
+    reviewSummaryJson: 'artifact-contract.review-submission.summary-json',
+  },
+  resultContracts: {
+    reviewStarted: 'result.review-submission.started',
+    scorePreview: 'result.review-submission.score-preview',
+    reviewFlagged: 'result.review-submission.flagged',
+    autoDecision: 'result.review-submission.auto-decision',
+    summary: 'result.review-submission.summary',
+    artifactGenerated: 'result.review-submission.artifact-generated',
+  },
+} as const;

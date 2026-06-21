@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { TaskStorageGateway } from '../../poc/tenant-process/Test1/task-storage/TaskStorageGateway.js';
+import type { TaskStorageGateway } from '../../poc/task-storage/Test1/TaskStorageGateway.js';
+import type { SystemTraceRecorder } from '../SystemTrace/index.js';
+import type { SqlSystemTraceQueryRepository } from '../SystemTrace/sqlTracePersistence.js';
 import {
   listInspectionCollections,
   listExecutionLogRecords,
@@ -7,16 +9,23 @@ import {
   type InspectionFilters,
 } from './inspection.js';
 
+export interface TaskStorageRouteOptions {
+  readonly traceRecorder: SystemTraceRecorder;
+  readonly traceRepository: SqlSystemTraceQueryRepository;
+}
+
 export async function routeTaskStorageRequest(
   request: IncomingMessage,
   response: ServerResponse,
   gateway: TaskStorageGateway,
+  options: TaskStorageRouteOptions,
   url: URL,
 ): Promise<boolean> {
   const method = request.method ?? 'GET';
 
   if (method === 'POST' && url.pathname === '/api/poc/reset-database') {
     await gateway.resetDatabase();
+    options.traceRepository.clear();
     sendJson(response, 200, { reset: true });
     return true;
   }
@@ -28,7 +37,7 @@ export async function routeTaskStorageRequest(
 
   const executionLogMatch = /^\/api\/inspection\/execution-log\/([^/]+)$/.exec(url.pathname);
   if (method === 'GET' && executionLogMatch) {
-    sendJson(response, 200, await listExecutionLogRecords(gateway, decodeURIComponent(executionLogMatch[1])));
+    sendJson(response, 200, await listExecutionLogRecords(gateway, options.traceRepository, decodeURIComponent(executionLogMatch[1])));
     return true;
   }
 
@@ -36,6 +45,7 @@ export async function routeTaskStorageRequest(
   if (method === 'GET' && collectionMatch) {
     const records = await listInspectionRecords(
       gateway,
+      options.traceRepository,
       decodeURIComponent(collectionMatch[1]),
       readInspectionFilters(url),
     );
@@ -63,7 +73,9 @@ export async function routeTaskStorageRequest(
       return true;
     }
 
-    sendJson(response, 201, await gateway.createTask({ data: { name } }));
+    const created = await gateway.createTask({ data: { name } });
+    await traceLatestTaskLifecycle(gateway, options.traceRecorder, created.id);
+    sendJson(response, 201, created);
     return true;
   }
 
@@ -75,6 +87,7 @@ export async function routeTaskStorageRequest(
       return true;
     }
 
+    await traceLatestTaskLifecycle(gateway, options.traceRecorder, signal.taskId);
     sendJson(response, 202, signal);
     return true;
   }
@@ -97,6 +110,68 @@ export async function routeTaskStorageRequest(
   }
 
   return false;
+}
+
+async function traceLatestTaskLifecycle(
+  gateway: TaskStorageGateway,
+  traceRecorder: SystemTraceRecorder,
+  taskId: string,
+): Promise<void> {
+  const events = (await gateway.listEvents()).filter((event) => event.sourceEntityId === taskId);
+  const event = events.at(-1);
+  if (!event) return;
+
+  const queueItem = (await gateway.listPersistentQueueItems()).find((item) => item.sourceEventId === event.id);
+  const baseContext = {
+    correlationId: taskId,
+    sourceTaskId: taskId,
+    sourceEventId: event.id,
+    ...(queueItem ? { sourceQueueItemId: queueItem.id } : {}),
+  };
+
+  await traceRecorder.trace({
+    operation: 'poc.task.event.persisted',
+    phase: 'POINT',
+    severity: 'info',
+    status: 'ok',
+    correlationId: taskId,
+    message: 'Task event persisted',
+    component: 'TaskStorageRoutes',
+    context: {
+      ...baseContext,
+      eventType: event.eventType,
+    },
+  });
+
+  if (!queueItem) return;
+
+  await traceRecorder.trace({
+    operation: 'poc.event-reaction.selected',
+    phase: 'POINT',
+    severity: 'info',
+    status: 'ok',
+    correlationId: taskId,
+    message: 'Event reaction selected',
+    component: 'TaskStorageRoutes',
+    context: {
+      ...baseContext,
+      eventReactionId: queueItem.eventReactionId,
+      handlerKey: queueItem.handlerKey,
+    },
+  });
+  await traceRecorder.trace({
+    operation: 'poc.queue-item.created',
+    phase: 'POINT',
+    severity: 'info',
+    status: 'ok',
+    correlationId: taskId,
+    message: 'Queue item created',
+    component: 'TaskStorageRoutes',
+    context: {
+      ...baseContext,
+      intentType: queueItem.intentType,
+    },
+  });
 }
 
 function readInspectionFilters(url: URL): InspectionFilters {

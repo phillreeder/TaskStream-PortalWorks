@@ -56,9 +56,10 @@ export const PLANNER_QUEUE_ITEM_STRUCTURE = {
   version: 1,
   structure: {
     type: 'object',
-    required: ['sourceEventId', 'eventReactionId', 'intentType', 'handlerKey', 'status', 'attemptCount', 'availableAt', 'createdAt'],
+    required: ['sourceEventId', 'tenantProcessId', 'eventReactionId', 'intentType', 'handlerKey', 'status', 'attemptCount', 'availableAt', 'createdAt'],
     properties: {
       sourceEventId: { type: 'string' },
+      tenantProcessId: { type: 'string' },
       eventReactionId: { type: 'string' },
       intentType: { type: 'string' },
       handlerKey: { type: 'string' },

@@ -1,4 +1,4 @@
-import { StateDefinitionValidationError, validateDefinitionStructure } from '../../definitionRuntime/state/index.js';
+import { StateDefinitionValidationError, validateDefinitionStructure, validateFieldDefinition } from '../../definitionRuntime/state/index.js';
 import type { StateDefinitionInput } from '../../definitionRuntime/state/index.js';
 import { failTenantProcessValidation } from './errors.js';
 import type {
@@ -54,6 +54,11 @@ const FORBIDDEN_TASK_FIELDS = ['flowRefs', 'artifactContractRefs', 'resultContra
 
 export function validateTenantProcessDefinition(candidate: unknown): asserts candidate is TenantProcessDefinition {
   const process = expectPlainObject(candidate, 'tenantProcess');
+
+  if (!('tenantProcessId' in process)) {
+    validateEmbeddedTenantProcessDefinition(process);
+    return;
+  }
 
   expectNonEmptyString(process.tenantProcessId, 'tenantProcess.tenantProcessId');
   expectNonEmptyString(process.tenantId, 'tenantProcess.tenantId');
@@ -113,6 +118,132 @@ export function validateTenantProcessDefinition(candidate: unknown): asserts can
   validateProcessChannelReferences(definition);
   validateContractReferences(definition);
   validateMapperReferences(definition);
+}
+
+
+function validateEmbeddedTenantProcessDefinition(process: UnknownRecord): void {
+  const id = expectPlainObject(process.id, 'tenantProcess.id');
+  expectNonEmptyString(id.tenant, 'tenantProcess.id.tenant');
+  expectNonEmptyString(id.process, 'tenantProcess.id.process');
+  expectNonEmptyString(process.name, 'tenantProcess.name');
+  expectPositiveInteger(process.version, 'tenantProcess.version');
+  expectString(process.description, 'tenantProcess.description');
+
+  for (const registryName of ['tasks', 'channels', 'stos', 'stateDefinitions'] as const) {
+    expectRegistry(process[registryName], `tenantProcess.${registryName}`);
+  }
+
+  const tasks = process.tasks as Registry<string, UnknownRecord>;
+  const channels = process.channels as Registry<string, UnknownRecord>;
+  const stos = process.stos as Registry<string, UnknownRecord>;
+  const stateDefinitions = process.stateDefinitions as Registry<string, unknown>;
+
+  validateStateDefinitions(stateDefinitions);
+  validateEmbeddedStreamStateContracts(process, 'inputContracts');
+  validateEmbeddedStreamStateContracts(process, 'resultContracts');
+
+  for (const [channelName, channel] of Object.entries(channels)) {
+    expectPlainObject(channel, `tenantProcess.channels.${channelName}`);
+    expectFunction(channel.executable, `tenantProcess.channels.${channelName}.executable`);
+  }
+
+  for (const [stoName, sto] of Object.entries(stos)) {
+    expectPlainObject(sto, `tenantProcess.stos.${stoName}`);
+    expectFunction(sto.flow, `tenantProcess.stos.${stoName}.flow`);
+    validateEmbeddedObjectReferences(process, `tenantProcess.stos.${stoName}`, sto);
+  }
+
+  for (const [taskName, task] of Object.entries(tasks)) {
+    expectPlainObject(task, `tenantProcess.tasks.${taskName}`);
+    requireObjectIdentity(stateDefinitions, task.stateDefinition, `tenantProcess.tasks.${taskName}.stateDefinition`);
+    if (task.channel !== undefined) {
+      requireObjectIdentity(channels, task.channel, `tenantProcess.tasks.${taskName}.channel`);
+    }
+
+    expectRegistry(task.stos, `tenantProcess.tasks.${taskName}.stos`);
+    const taskStos = task.stos as Registry<string, unknown>;
+    for (const [stoName, sto] of Object.entries(taskStos)) {
+      if (stos[stoName] !== sto) {
+        failTenantProcessValidation(
+          'INVALID_REFERENCE',
+          `tenantProcess.tasks.${taskName}.stos.${stoName}`,
+          `Task ${taskName} must reference the registered STO object ${stoName}`,
+        );
+      }
+    }
+    if (task.defaultSto !== undefined && !Object.values(taskStos).includes(task.defaultSto)) {
+      failTenantProcessValidation(
+        'INVALID_REFERENCE',
+        `tenantProcess.tasks.${taskName}.defaultSto`,
+        `Task ${taskName} defaultSto must be one of its STO objects`,
+      );
+    }
+    validateEmbeddedObjectReferences(process, `tenantProcess.tasks.${taskName}`, task);
+  }
+}
+
+function validateEmbeddedStreamStateContracts(
+  process: UnknownRecord,
+  registryName: 'inputContracts' | 'resultContracts',
+): void {
+  const registry = process[registryName];
+  if (registry === undefined) return;
+
+  expectRegistry(registry, `tenantProcess.${registryName}`);
+  for (const [contractName, candidate] of Object.entries(registry as Registry<string, unknown>)) {
+    const contract = expectPlainObject(candidate, `tenantProcess.${registryName}.${contractName}`);
+    const fields = expectPlainObject(contract.fields, `tenantProcess.${registryName}.${contractName}.fields`);
+    for (const [fieldName, fieldDefinition] of Object.entries(fields)) {
+      try {
+        validateFieldDefinition(
+          `tenantProcess.${registryName}.${contractName}.fields.${fieldName}`,
+          fieldDefinition,
+        );
+      } catch (error) {
+        if (error instanceof Error) {
+          failTenantProcessValidation(
+            'INVALID_CONTRACT',
+            `tenantProcess.${registryName}.${contractName}.fields.${fieldName}`,
+            error.message,
+          );
+        }
+        throw error;
+      }
+    }
+  }
+}
+
+function validateEmbeddedObjectReferences(process: UnknownRecord, path: string, value: UnknownRecord): void {
+  const bindings = [
+    ['inputContracts', 'inputContracts'],
+    ['resultContracts', 'resultContracts'],
+    ['artifactContracts', 'artifactContracts'],
+    ['credentialContracts', 'credentialContracts'],
+    ['validators', 'validators'],
+    ['mappers', 'mappers'],
+  ] as const;
+
+  for (const [field, registryName] of bindings) {
+    const references = value[field];
+    if (references === undefined) continue;
+    if (!Array.isArray(references)) {
+      failTenantProcessValidation('INVALID_REQUIRED_FIELD', `${path}.${field}`, `${path}.${field} must be an array`);
+    }
+    const registry = process[registryName];
+    if (registry === undefined) {
+      failTenantProcessValidation('MISSING_REFERENCE', `${path}.${field}`, `${path}.${field} requires tenantProcess.${registryName}`);
+    }
+    expectRegistry(registry, `tenantProcess.${registryName}`);
+    for (const reference of references) {
+      requireObjectIdentity(registry as Registry<string, unknown>, reference, `${path}.${field}`);
+    }
+  }
+}
+
+function requireObjectIdentity(registry: Registry<string, unknown>, value: unknown, path: string): void {
+  if (!Object.values(registry).includes(value)) {
+    failTenantProcessValidation('MISSING_REFERENCE', path, `${path} must reference an object registered in its TenantProcess collection`);
+  }
 }
 
 export function validateTenantProcessRuntimeBinding(

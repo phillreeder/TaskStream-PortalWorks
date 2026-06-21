@@ -10,9 +10,9 @@ import type {
 
 export function adaptTenantProcessForRuntimeScaffold(rawTenantProcess: unknown): RuntimeScaffoldRuntimeTenantProcess {
   const tenantProcess = expectRecord(rawTenantProcess, 'TenantProcess', 'TENANT_PROCESS_INVALID', 'tenant-process');
-  const tasks = valuesFromRegistryOrArray(tenantProcess.tasks);
-  const processFlows = valuesFromRegistryOrArray(tenantProcess.flows);
-  const processStos = valuesFromRegistryOrArray(tenantProcess.stos);
+  const tasks = entriesFromRegistryOrArray(tenantProcess.tasks);
+  const processFlows = entriesFromRegistryOrArray(tenantProcess.flows);
+  const processStos = entriesFromRegistryOrArray(tenantProcess.stos);
   const stateDefinitions = asRecord(tenantProcess.stateDefinitions);
 
   if (tasks.length === 0) {
@@ -24,8 +24,8 @@ export function adaptTenantProcessForRuntimeScaffold(rawTenantProcess: unknown):
   }
 
   return {
-    tenantProcessId: optionalString(tenantProcess.tenantProcessId ?? tenantProcess.id),
-    tasks: tasks.map((task) => normalizeTask(task, {
+    tenantProcessId: optionalString(tenantProcess.name ?? tenantProcess.tenantProcessId ?? tenantProcess.id),
+    tasks: tasks.map(([taskName, task]) => normalizeTask(task, taskName, {
       processFlows,
       processStos,
       stateDefinitions,
@@ -35,14 +35,15 @@ export function adaptTenantProcessForRuntimeScaffold(rawTenantProcess: unknown):
 
 function normalizeTask(
   rawTask: unknown,
+  taskName: string | undefined,
   processBindings: {
-    readonly processFlows: readonly unknown[];
-    readonly processStos: readonly unknown[];
+    readonly processFlows: readonly (readonly [string | undefined, unknown])[];
+    readonly processStos: readonly (readonly [string | undefined, unknown])[];
     readonly stateDefinitions?: Record<string, unknown>;
   },
 ): RuntimeScaffoldRuntimeTask {
   const task = expectRecord(rawTask, 'Task', 'TASK_BINDING_INVALID', 'task-resolution');
-  const taskId = requiredString(task.taskId ?? task.id, 'Task id', 'TASK_BINDING_INVALID', 'task-resolution');
+  const taskId = requiredString(taskName ?? task.taskId ?? task.id, 'Task id', 'TASK_BINDING_INVALID', 'task-resolution');
   const stateDefinition = resolveStateDefinition(task, processBindings.stateDefinitions);
   const stos = resolveStos(task, processBindings.processStos, processBindings.processFlows);
   const defaultStoId = resolveDefaultStoId(task, stos);
@@ -85,25 +86,31 @@ function resolveStateDefinition(task: Record<string, unknown>, stateDefinitions?
 
 function resolveStos(
   task: Record<string, unknown>,
-  processStos: readonly unknown[],
-  processFlows: readonly unknown[],
+  processStos: readonly (readonly [string | undefined, unknown])[],
+  processFlows: readonly (readonly [string | undefined, unknown])[],
 ): readonly RuntimeScaffoldRuntimeSto[] {
-  const inlineStos = valuesFromRegistryOrArray(task.stos);
+  const inlineStos = entriesFromRegistryOrArray(task.stos);
   const stoRefs = Array.isArray(task.stoRefs) ? task.stoRefs : [];
   const resolvedRefStos = stoRefs
-    .map((ref) => processStos.find((candidate) => runtimeId(candidate, 'stoId') === ref))
+    .map((ref) => processStos.find(([name, candidate]) => runtimeId(candidate, 'stoId') === ref || name === ref))
     .filter(isDefined);
   const rawStos = inlineStos.length > 0 ? inlineStos : resolvedRefStos;
-  return rawStos.map((sto) => normalizeSto(sto, processFlows));
+  return rawStos.map(([stoName, sto]) => normalizeSto(sto, stoName, processFlows));
 }
 
-function normalizeSto(rawSto: unknown, processFlows: readonly unknown[]): RuntimeScaffoldRuntimeSto {
+function normalizeSto(
+  rawSto: unknown,
+  stoName: string | undefined,
+  processFlows: readonly (readonly [string | undefined, unknown])[],
+): RuntimeScaffoldRuntimeSto {
   const sto = expectRecord(rawSto, 'STO', 'FLOW_BINDING_INVALID', 'flow-resolution');
-  const stoId = requiredString(sto.stoId ?? sto.id, 'STO id', 'FLOW_BINDING_INVALID', 'flow-resolution');
-  const inlineFlow = isRecord(sto.flow) ? normalizeFlow(sto.flow) : undefined;
+  const stoId = requiredString(stoName ?? sto.stoId ?? sto.id, 'STO id', 'FLOW_BINDING_INVALID', 'flow-resolution');
+  const inlineFlow = typeof sto.flow === 'function' || isRecord(sto.flow)
+    ? normalizeFlow(sto.flow, stoId)
+    : undefined;
   const flowRef = optionalString(sto.flowRef);
   const flowFromRef = flowRef
-    ? processFlows.map((flow) => normalizeFlow(flow)).find((flow) => flow.flowId === flowRef)
+    ? processFlows.map(([name, flow]) => normalizeFlow(flow, name)).find((flow) => flow.flowId === flowRef)
     : undefined;
   const flow = inlineFlow ?? flowFromRef;
   const declaredFlowId = flow?.flowId ?? flowRef;
@@ -115,9 +122,16 @@ function normalizeSto(rawSto: unknown, processFlows: readonly unknown[]): Runtim
   };
 }
 
-function normalizeFlow(rawFlow: unknown): RuntimeScaffoldRuntimeFlow {
+function normalizeFlow(rawFlow: unknown, flowName?: string): RuntimeScaffoldRuntimeFlow {
+  if (typeof rawFlow === 'function') {
+    return {
+      flowId: requiredString(flowName, 'Flow id', 'FLOW_BINDING_INVALID', 'flow-resolution'),
+      executable: rawFlow as FlowExecutable,
+    };
+  }
+
   const flow = expectRecord(rawFlow, 'Flow', 'FLOW_BINDING_INVALID', 'flow-resolution');
-  const flowId = requiredString(flow.flowId ?? flow.id, 'Flow id', 'FLOW_BINDING_INVALID', 'flow-resolution');
+  const flowId = requiredString(flowName ?? flow.flowId ?? flow.id, 'Flow id', 'FLOW_BINDING_INVALID', 'flow-resolution');
   if (typeof flow.executable !== 'function') {
     throw new RuntimeScaffoldExecutionError({
       message: `Flow does not expose an executable function: ${flowId}`,
@@ -138,7 +152,8 @@ function resolveDefaultStoId(
   stos: readonly RuntimeScaffoldRuntimeSto[],
 ): string | undefined {
   if (isRecord(task.defaultSto)) {
-    const defaultStoId = runtimeId(task.defaultSto, 'stoId');
+    const defaultEntry = entriesFromRegistryOrArray(task.stos).find(([, sto]) => sto === task.defaultSto);
+    const defaultStoId = defaultEntry?.[0] ?? runtimeId(task.defaultSto, 'stoId');
     return stos.find((sto) => sto.stoId === defaultStoId)?.stoId;
   }
 
@@ -150,12 +165,12 @@ function resolveDefaultStoId(
   return undefined;
 }
 
-function valuesFromRegistryOrArray(value: unknown): readonly unknown[] {
+function entriesFromRegistryOrArray(value: unknown): readonly (readonly [string | undefined, unknown])[] {
   if (Array.isArray(value)) {
-    return value;
+    return value.map((entry) => [undefined, entry] as const);
   }
   if (isRecord(value)) {
-    return Object.values(value);
+    return Object.entries(value);
   }
   return [];
 }

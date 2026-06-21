@@ -70,7 +70,7 @@ export type {
   RuntimeScaffoldRunFileFormat,
   RuntimeScaffoldStateReference,
   RuntimeScaffoldSystemTraceTracer,
-  RuntimeScaffoldTraceSpanCall,
+  RuntimeScaffoldTraceRecordCall,
   RuntimeScaffoldValidationSummary,
   ScaffoldControlFile,
 } from './types.js';

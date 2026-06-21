@@ -4,7 +4,9 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "baseUrl": ".",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "outDir": "./dist",
     "rootDir": ".",
     "strict": true,
@@ -14,13 +16,24 @@
     "declaration": true,
     "sourceMap": true,
     "paths": {
-      "@TaskStream/SiteAutomation": ["packages/automation/index.ts"],
-      "@TaskStream/SiteAutomation/*": ["packages/automation/*"]
+      "@TaskStream/SiteAutomation": [
+        "packages/automation/index.ts"
+      ],
+      "@TaskStream/SiteAutomation/*": [
+        "packages/automation/*"
+      ],
+      "@TaskStream/App/*": [
+        "src/*"
+      ],
+      "@TaskStream/Tenants/*": [
+        "Tenants/*"
+      ]
     }
   },
   "include": [
     "src",
-    "packages"
+    "packages",
+    "Tenants"
   ],
   "exclude": [
     "node_modules",

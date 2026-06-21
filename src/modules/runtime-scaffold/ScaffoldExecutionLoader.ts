@@ -36,12 +36,13 @@ export class ScaffoldExecutionLoader {
   }
 
   async loadFromControlFile(controlPath: string): Promise<RuntimeScaffoldLoadResult> {
-  const resolvedControlPath = path.resolve(controlPath);
+    const resolvedControlPath = path.resolve(controlPath);
     const descriptorEvents = RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading;
 
-    const controlRead = await this.traceResult(descriptorEvents.controlRead, { path: resolvedControlPath }, () =>
-      readJsonFile(this.fileSystem, resolvedControlPath, 'control'),
-    );
+    const controlReadContext = { path: resolvedControlPath };
+    await this.traceStarted(descriptorEvents.controlRead, controlReadContext);
+    const controlRead = await readJsonFile(this.fileSystem, resolvedControlPath, 'control');
+    await this.recordResultTrace(descriptorEvents.controlRead, controlReadContext, controlRead);
     if (!controlRead.ok) {
       return {
         ok: false,
@@ -50,9 +51,10 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const controlResult = await this.traceResult(descriptorEvents.controlNormalize, { path: resolvedControlPath }, () =>
-      normalizeControlFile(controlRead.value, resolvedControlPath),
-    );
+    const controlNormalizeContext = { path: resolvedControlPath };
+    await this.traceStarted(descriptorEvents.controlNormalize, controlNormalizeContext);
+    const controlResult = normalizeControlFile(controlRead.value, resolvedControlPath);
+    await this.recordResultTrace(descriptorEvents.controlNormalize, controlNormalizeContext, controlResult);
     if (!controlResult.ok) {
       return {
         ok: false,
@@ -61,11 +63,10 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const executionPath = await this.traceResult(
-      descriptorEvents.executionPathResolve,
-      { path: resolvedControlPath, activeExecutionFile: controlResult.control.activeExecutionFile },
-      () => resolveExecutionPath(controlResult.control.activeExecutionFile, resolvedControlPath),
-    );
+    const executionPathContext = { path: resolvedControlPath, activeExecutionFile: controlResult.control.activeExecutionFile };
+    await this.traceStarted(descriptorEvents.executionPathResolve, executionPathContext);
+    const executionPath = resolveExecutionPath(controlResult.control.activeExecutionFile, resolvedControlPath);
+    await this.recordResultTrace(descriptorEvents.executionPathResolve, executionPathContext, executionPath);
     if (!executionPath.ok) {
       return {
         ok: false,
@@ -74,9 +75,10 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const executionFormat = await this.traceResult(descriptorEvents.formatDetect, { path: executionPath.path }, () =>
-      detectExecutionFormat(executionPath.path),
-    );
+    const formatContext = { path: executionPath.path };
+    await this.traceStarted(descriptorEvents.formatDetect, formatContext);
+    const executionFormat = detectExecutionFormat(executionPath.path);
+    await this.recordResultTrace(descriptorEvents.formatDetect, formatContext, executionFormat);
     if (!executionFormat.ok) {
       return {
         ok: false,
@@ -86,9 +88,10 @@ export class ScaffoldExecutionLoader {
       };
     }
 
-    const descriptorRead = await this.traceResult(descriptorEvents.descriptorFileRead, { path: executionPath.path }, () =>
-      readJsonFile(this.fileSystem, executionPath.path, 'execution'),
-    );
+    const descriptorReadContext = { path: executionPath.path };
+    await this.traceStarted(descriptorEvents.descriptorFileRead, descriptorReadContext);
+    const descriptorRead = await readJsonFile(this.fileSystem, executionPath.path, 'execution');
+    await this.recordResultTrace(descriptorEvents.descriptorFileRead, descriptorReadContext, descriptorRead);
     if (!descriptorRead.ok) {
       return {
         ok: false,
@@ -99,9 +102,13 @@ export class ScaffoldExecutionLoader {
     }
 
     try {
-      const normalized = await this.traceValue(descriptorEvents.descriptorNormalize, { path: executionPath.path }, () =>
-        this.normalizer.normalize(descriptorRead.value, executionPath.path),
-      );
+      const normalizeContext = { path: executionPath.path };
+      await this.traceStarted(descriptorEvents.descriptorNormalize, normalizeContext);
+      const normalized = this.normalizer.normalize(descriptorRead.value, executionPath.path);
+      await this.traceCompleted(descriptorEvents.descriptorNormalize, {
+        ...normalizeContext,
+        descriptorId: normalized.descriptor.id,
+      });
       return {
         ok: true,
         controlPath: resolvedControlPath,
@@ -112,6 +119,7 @@ export class ScaffoldExecutionLoader {
         warnings: normalized.warnings,
       };
     } catch (error) {
+      await this.traceFailed(descriptorEvents.descriptorNormalize, { path: executionPath.path, error: traceError(error) });
       return {
         ok: false,
         controlPath: resolvedControlPath,
@@ -121,71 +129,54 @@ export class ScaffoldExecutionLoader {
     }
   }
 
-  private traceValue<T>(operationKey: string, data: JsonObject, fn: () => T | Promise<T>): Promise<T> {
-    if (!this.systemTraceTracer) {
-      return Promise.resolve(fn());
-    }
-
-    return this.systemTraceTracer.span(
-      {
-        operationKey,
-        data,
-        metadata: {
-          tags: ['runtime-scaffold', 'descriptor'],
-        },
-      },
-      fn,
-    );
+  private traceStarted(operationKey: string, data: JsonObject): Promise<void> {
+    return this.trace(operationKey, 'started', data);
   }
 
-  private async traceResult<T extends { readonly ok: boolean }>(
+  private traceCompleted(operationKey: string, data: JsonObject): Promise<void> {
+    return this.trace(operationKey, 'completed', data);
+  }
+
+  private traceFailed(operationKey: string, data: JsonObject): Promise<void> {
+    return this.trace(operationKey, 'failed', data);
+  }
+
+  private async recordResultTrace<T extends { readonly ok: boolean }>(
     operationKey: string,
     data: JsonObject,
-    fn: () => T | Promise<T>,
-  ): Promise<T> {
+    result: T,
+  ): Promise<void> {
+    if (result.ok) {
+      await this.traceCompleted(operationKey, data);
+      return;
+    }
+    const error = 'error' in result ? result.error : undefined;
+    await this.traceFailed(operationKey, { ...data, error: traceError(error) });
+  }
+
+  private async trace(operationKey: string, lifecycle: 'started' | 'completed' | 'failed', data: JsonObject): Promise<void> {
     if (!this.systemTraceTracer) {
-      return fn();
+      return;
     }
 
-    try {
-      return await this.systemTraceTracer.span(
-        {
-          operationKey,
-          data,
-          metadata: {
-            tags: ['runtime-scaffold', 'descriptor'],
-          },
-        },
-        async () => {
-          const result = await fn();
-          if (!result.ok) {
-            throw new RuntimeScaffoldTraceResultFailure(result as { readonly ok: false; readonly error?: unknown });
-          }
-          return result;
-        },
-      );
-    } catch (error) {
-      if (error instanceof RuntimeScaffoldTraceResultFailure) {
-        return error.result as T;
-      }
-      throw error;
-    }
+    const status = lifecycle === 'failed' ? 'error' : 'ok';
+    const phase = lifecycle === 'started' ? 'START' : lifecycle === 'completed' ? 'END' : 'ERROR';
+    await this.systemTraceTracer.record({
+      operationKey,
+      phase,
+      status,
+      severity: lifecycle === 'failed' ? 'error' : 'info',
+      message: `${operationKey} ${lifecycle}`,
+      data: {
+        ...data,
+        observedOperation: operationKey,
+        lifecycle,
+      },
+      metadata: {
+        tags: ['runtime-scaffold', 'descriptor'],
+      },
+    });
   }
-}
-
-class RuntimeScaffoldTraceResultFailure extends Error {
-  constructor(readonly result: { readonly ok: false; readonly error?: unknown }) {
-    super(getTraceFailureMessage(result));
-    this.name = 'RuntimeScaffoldTraceResultFailure';
-  }
-}
-
-function getTraceFailureMessage(result: { readonly ok: false; readonly error?: unknown }): string {
-  const error = result.error;
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'RuntimeScaffold traced phase returned a failure result';
 }
 
 type JsonReadResult =
@@ -333,4 +324,19 @@ function asRuntimeScaffoldLoadError(error: unknown, pathName: string): RuntimeSc
     path: pathName,
     cause: error,
   });
+}
+
+function traceError(error: unknown): JsonObject {
+  if (error instanceof Error) {
+    const maybeCode = (error as Error & { readonly code?: unknown }).code;
+    return {
+      name: error.name,
+      message: error.message,
+      ...(typeof maybeCode === 'string' ? { code: maybeCode } : {}),
+    };
+  }
+  return {
+    name: typeof error,
+    message: String(error),
+  };
 }

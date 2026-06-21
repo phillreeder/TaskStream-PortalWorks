@@ -310,7 +310,7 @@ describe('ScaffoldExecutionLoader', () => {
     expect(result.error.code).toBe('EXECUTION_PATH_INVALID');
   });
 
-  it('emits SystemTrace spans through ModuleLink for descriptor loading and normalization', async () => {
+  it('emits explicit SystemTrace records through ModuleLink for descriptor loading and normalization', async () => {
     const { adapter, loader } = tracedLoader({
       '/scaffold/control.json': json({ activeExecutionFile: './executions/flow-only.json' }),
       '/scaffold/executions/flow-only.json': json(validBaseDescriptor),
@@ -320,13 +320,12 @@ describe('ScaffoldExecutionLoader', () => {
 
     expect(result.ok).toBe(true);
     const descriptorEvents = RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading;
-    const spanRecords = adapter.records.filter((record) => record.family === 'span');
-    expect(spanRecords.some((record) => record.operation === descriptorEvents.descriptorFileRead && record.phase === 'START')).toBe(true);
-    expect(spanRecords.some((record) => record.operation === descriptorEvents.descriptorNormalize && record.phase === 'END')).toBe(true);
-    const descriptorLoadStart = spanRecords.find((record) => record.operation === descriptorEvents.descriptorFileRead && record.phase === 'START');
-    const descriptorLoadEnd = spanRecords.find((record) => record.operation === descriptorEvents.descriptorFileRead && record.phase === 'END');
-    expect(descriptorLoadStart?.traceId).toBe(descriptorLoadEnd?.traceId);
-    expect(descriptorLoadStart?.spanId).toBe(descriptorLoadEnd?.spanId);
+    const traceRecords = adapter.records.filter((record) => record.family === 'trace');
+    expect(traceRecords.some((record) => record.operation === descriptorEvents.descriptorFileRead && record.phase === 'START')).toBe(true);
+    expect(traceRecords.some((record) => record.operation === descriptorEvents.descriptorNormalize && record.phase === 'END')).toBe(true);
+    const descriptorLoadStart = traceRecords.find((record) => record.operation === descriptorEvents.descriptorFileRead && record.phase === 'START');
+    const descriptorLoadEnd = traceRecords.find((record) => record.operation === descriptorEvents.descriptorFileRead && record.phase === 'END');
+    expect(descriptorLoadStart?.seq).toBeLessThan(descriptorLoadEnd?.seq ?? 0);
   });
 
   it('runtime-scaffold uses shared trace event catalog names', async () => {
@@ -399,7 +398,7 @@ describe('ScaffoldExecutionLoader', () => {
     expect(Array.isArray(endRecord?.tags)).toBe(true);
   });
 
-  it('closes RuntimeScaffold traced failure paths with END error status while preserving failure results', async () => {
+  it('records RuntimeScaffold traced failure paths with ERROR status while preserving failure results', async () => {
     const { adapter, loader } = tracedLoader({
       '/scaffold/control.json': json({ activeExecutionFile: './bad.json' }),
       '/scaffold/bad.json': json({
@@ -418,7 +417,7 @@ describe('ScaffoldExecutionLoader', () => {
     expect(result.error.code).toBe('DESCRIPTOR_INVALID');
     expect(adapter.records.at(-1)).toMatchObject({
       operation: RUNTIME_SCAFFOLD_TRACE_EVENTS.descriptorLoading.descriptorNormalize,
-      phase: 'END',
+      phase: 'ERROR',
       status: 'error',
     });
   });

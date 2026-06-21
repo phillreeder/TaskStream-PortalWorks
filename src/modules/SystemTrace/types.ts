@@ -107,6 +107,10 @@ export interface SystemTraceRecordCall {
   readonly operationKey: string;
   readonly data?: JsonValue;
   readonly context?: JsonValue;
+  readonly phase?: SystemTracePhase;
+  readonly severity?: SystemTraceSeverity;
+  readonly status?: SystemTraceStatus;
+  readonly message?: string;
   readonly metadata?: SystemTraceOperationMetadata;
 }
 

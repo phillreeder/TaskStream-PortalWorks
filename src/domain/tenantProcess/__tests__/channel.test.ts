@@ -2,26 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { channel } from '../channel.js';
 
 describe('channel', () => {
-  it('provides the contextual Channel shape and preserves the executable', () => {
-    const executable = channel((ctx) => ({
-      requestId: 'request.test',
-      taskRef: ctx.taskRef,
-      channelRef: 'channel.test',
-      selectedStoRef: 'sto.test',
-    }));
+  it('selects an STO by authored name through the injected Channel context', () => {
+    const executable = channel((ctx) => ctx.selectSto('prepareWork', 'Work is pending.'));
 
-    expect(
-      executable({
-        taskRef: 'task.test',
-        state: {
-          read: () => undefined,
-        },
-      }),
-    ).toEqual({
-      requestId: 'request.test',
+    const result = executable({
       taskRef: 'task.test',
-      channelRef: 'channel.test',
-      selectedStoRef: 'sto.test',
+      state: { read: () => undefined },
+      selectSto: (stoName, reason) => ({ type: 'sto', stoName, reason }),
+    });
+
+    expect(result).toEqual({
+      type: 'sto',
+      stoName: 'prepareWork',
+      reason: 'Work is pending.',
     });
   });
 });

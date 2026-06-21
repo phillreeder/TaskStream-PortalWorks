@@ -105,12 +105,13 @@ export interface Channel<TState extends StateSnapshot = StateSnapshot> {
 
 export type ChannelExecutable<TState extends StateSnapshot = StateSnapshot> = (
   context: ChannelContext<TState>,
-) => ChannelSTORequest;
+) => ChannelSTOSelection;
 
 export interface ChannelContext<TState extends StateSnapshot = StateSnapshot> {
   readonly taskRef: TaskRef;
   readonly state: ChannelStateReader<TState>;
   readonly params?: Record<string, unknown>;
+  readonly selectSto: (stoName: string, reason: string) => ChannelSTOSelection;
 }
 
 export interface ChannelStateReader<TState extends StateSnapshot = StateSnapshot> {
@@ -118,17 +119,15 @@ export interface ChannelStateReader<TState extends StateSnapshot = StateSnapshot
   snapshot?(): TState;
 }
 
-export interface ChannelSTORequest {
-  readonly requestId: string;
-  readonly taskRef: TaskRef;
-  readonly channelRef: ChannelRef;
-  readonly selectedStoRef: STORef;
-  readonly flowParams?: Record<string, unknown>;
-  readonly reason?: string;
-  readonly metadata?: Record<string, unknown>;
+export interface ChannelSTOSelection {
+  readonly type: 'sto';
+  readonly stoName: string;
+  readonly reason: string;
 }
 
+
 export interface STO {
+  readonly stoName: string;
   readonly stoId: STORef;
   readonly taskRef: TaskRef;
   readonly flowRef: FlowRef;
@@ -176,16 +175,47 @@ export type FlowExecutable<
   input: TInput,
 ) => Promise<TResult> | TResult;
 
+export type FlowProbeEvaluator = () => boolean;
+
+export interface FlowResultOptions {
+  readonly artifacts?: readonly unknown[];
+  readonly proposedState?: unknown;
+  readonly metadata?: Record<string, unknown>;
+}
+
+export interface FlowFailureOptions {
+  readonly reason?: string;
+}
+
+export type FlowRetryOptions =
+  | {
+      readonly reason?: string;
+      readonly afterSeconds?: number;
+      readonly allowFastRetry?: false;
+    }
+  | {
+      readonly reason?: string;
+      readonly afterSeconds: number;
+      readonly allowFastRetry: true;
+    };
+
 export interface FlowContext<TState extends StateSnapshot = StateSnapshot> {
   readonly taskRef: TaskRef;
   readonly stoRef: STORef;
   readonly state: FlowStateReader<TState>;
   readonly change: FlowChangeWriter;
+  probe(name: string, evaluate: FlowProbeEvaluator): boolean;
+  success<TResult = unknown>(result?: TResult, options?: FlowResultOptions): FlowResult;
+  retry(options?: FlowRetryOptions): FlowResult;
+  fail(options?: FlowFailureOptions): FlowResult;
 }
 
 export interface FlowResult {
-  readonly status: string;
+  readonly status: 'succeeded' | 'retry' | 'failed';
   readonly result?: unknown;
+  readonly reason?: string;
+  readonly afterSeconds?: number;
+  readonly allowFastRetry?: boolean;
   readonly artifacts?: readonly unknown[];
   readonly proposedState?: unknown;
   readonly metadata?: Record<string, unknown>;
@@ -239,10 +269,13 @@ export interface UnitSelector {
   readonly mapperRefs?: readonly MapperRef[];
 }
 
-export interface InputContract {
-  readonly inputContractId: InputContractRef;
-  readonly inputKind: InputKind;
-  readonly schemaRef?: string;
+export interface StreamStateContract<TFields extends FieldDefinitions = FieldDefinitions> {
+  readonly fields: TFields;
+}
+
+export interface InputContract<TFields extends FieldDefinitions = FieldDefinitions>
+  extends StreamStateContract<TFields> {
+  readonly inputContractId?: InputContractRef;
   readonly validatorRefs?: readonly ValidatorRef[];
   readonly mapperRefs?: readonly MapperRef[];
   readonly credentialContractRefs?: readonly CredentialContractRef[];
@@ -257,10 +290,9 @@ export interface ArtifactContract {
   readonly required?: boolean;
 }
 
-export interface ResultContract {
-  readonly resultContractId: ResultContractRef;
-  readonly schemaRef?: string;
-  readonly statusValues?: readonly string[];
+export interface ResultContract<TFields extends FieldDefinitions = FieldDefinitions>
+  extends StreamStateContract<TFields> {
+  readonly resultContractId?: ResultContractRef;
   readonly validatorRefs?: readonly ValidatorRef[];
   readonly mapperRefs?: readonly MapperRef[];
 }

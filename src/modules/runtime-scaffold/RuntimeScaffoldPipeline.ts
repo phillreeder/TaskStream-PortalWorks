@@ -69,17 +69,35 @@ export async function loadRuntimeScaffoldExecution(
     });
   }
 
-  const tenantProcess = await dependencies.tracer.traceValue(runtimeEvents.tenantProcessLoad, {
+  const tenantProcessContext = {
     descriptorId: descriptor.id,
     tenantProcessRef: descriptor.tenantProcessRef,
-  }, () => dependencies.tenantProcessLoader.load({
-    reference: descriptor.tenantProcessRef,
-    executionPath: load.executionPath,
-  }));
+  };
+  await dependencies.tracer.started(runtimeEvents.tenantProcessLoad, tenantProcessContext);
+  let tenantProcess: unknown;
+  try {
+    tenantProcess = await dependencies.tenantProcessLoader.load({
+      reference: descriptor.tenantProcessRef,
+      executionPath: load.executionPath,
+    });
+    await dependencies.tracer.completed(runtimeEvents.tenantProcessLoad, tenantProcessContext);
+  } catch (error) {
+    await dependencies.tracer.failed(runtimeEvents.tenantProcessLoad, { ...tenantProcessContext, error: traceError(error) });
+    throw error;
+  }
 
-  const runtimeTenantProcess = await dependencies.tracer.traceValue(runtimeEvents.tenantProcessValidate, {
+  const validateContext = {
     descriptorId: descriptor.id,
-  }, () => adaptTenantProcessForRuntimeScaffold(tenantProcess));
+  };
+  await dependencies.tracer.started(runtimeEvents.tenantProcessValidate, validateContext);
+  let runtimeTenantProcess;
+  try {
+    runtimeTenantProcess = adaptTenantProcessForRuntimeScaffold(tenantProcess);
+    await dependencies.tracer.completed(runtimeEvents.tenantProcessValidate, validateContext);
+  } catch (error) {
+    await dependencies.tracer.failed(runtimeEvents.tenantProcessValidate, { ...validateContext, error: traceError(error) });
+    throw error;
+  }
 
   return {
     load,
@@ -94,10 +112,19 @@ export async function resolveRuntimeScaffoldTaskExecution(
   dependencies: RuntimeScaffoldPipelineDependencies,
 ): Promise<RuntimeScaffoldTaskResolvedExecution> {
   dependencies.stageObserver?.('resolve');
-  const task = await dependencies.tracer.traceValue(runtimeEvents.taskResolve, {
+  const context = {
     descriptorId: execution.descriptor.id,
     taskId: execution.descriptor.taskId,
-  }, () => resolveRuntimeScaffoldTask(execution.tenantProcess, execution.descriptor.taskId));
+  };
+  await dependencies.tracer.started(runtimeEvents.taskResolve, context);
+  let task;
+  try {
+    task = resolveRuntimeScaffoldTask(execution.tenantProcess, execution.descriptor.taskId);
+    await dependencies.tracer.completed(runtimeEvents.taskResolve, context);
+  } catch (error) {
+    await dependencies.tracer.failed(runtimeEvents.taskResolve, { ...context, error: traceError(error) });
+    throw error;
+  }
 
   return {
     ...execution,
@@ -110,15 +137,33 @@ export async function prepareRuntimeScaffoldExecution(
   dependencies: RuntimeScaffoldPipelineDependencies,
 ): Promise<RuntimeScaffoldPreparedExecution> {
   dependencies.stageObserver?.('prepare');
-  const sourceState = await dependencies.tracer.traceValue(runtimeEvents.sourceStateLoad, {
+  const sourceStateContext = {
     descriptorId: execution.descriptor.id,
     sourceStateRef: execution.descriptor.sourceStateRef,
-  }, () => dependencies.sourceStateLoader.load(execution.load));
+  };
+  await dependencies.tracer.started(runtimeEvents.sourceStateLoad, sourceStateContext);
+  let sourceState: unknown;
+  try {
+    sourceState = await dependencies.sourceStateLoader.load(execution.load);
+    await dependencies.tracer.completed(runtimeEvents.sourceStateLoad, sourceStateContext);
+  } catch (error) {
+    await dependencies.tracer.failed(runtimeEvents.sourceStateLoad, { ...sourceStateContext, error: traceError(error) });
+    throw error;
+  }
 
-  const workingState = await dependencies.tracer.traceValue(runtimeEvents.workingStatePrepare, {
+  const workingStateContext = {
     descriptorId: execution.descriptor.id,
     taskId: execution.task.taskId,
-  }, () => prepareRuntimeScaffoldWorkingState(execution.task.stateDefinition, sourceState));
+  };
+  await dependencies.tracer.started(runtimeEvents.workingStatePrepare, workingStateContext);
+  let workingState;
+  try {
+    workingState = prepareRuntimeScaffoldWorkingState(execution.task.stateDefinition, sourceState);
+    await dependencies.tracer.completed(runtimeEvents.workingStatePrepare, workingStateContext);
+  } catch (error) {
+    await dependencies.tracer.failed(runtimeEvents.workingStatePrepare, { ...workingStateContext, error: traceError(error) });
+    throw error;
+  }
 
   return {
     ...execution,
@@ -131,16 +176,29 @@ export async function resolveRuntimeScaffoldFlowExecution(
   execution: RuntimeScaffoldPreparedExecution,
   dependencies: RuntimeScaffoldPipelineDependencies,
 ): Promise<RuntimeScaffoldFlowResolvedExecution> {
-  const flowSelection = await dependencies.tracer.traceValue(runtimeEvents.flowResolve, {
+  const context = {
     descriptorId: execution.descriptor.id,
     taskId: execution.task.taskId,
     flowId: execution.descriptor.execution?.flowId,
     stoId: execution.descriptor.execution?.stoId,
-  }, () => resolveRuntimeScaffoldFlowSelection(
-    execution.task,
-    execution.descriptor.execution?.flowId,
-    execution.descriptor.execution?.stoId,
-  ));
+  };
+  await dependencies.tracer.started(runtimeEvents.flowResolve, context);
+  let flowSelection;
+  try {
+    flowSelection = resolveRuntimeScaffoldFlowSelection(
+      execution.task,
+      execution.descriptor.execution?.flowId,
+      execution.descriptor.execution?.stoId,
+    );
+    await dependencies.tracer.completed(runtimeEvents.flowResolve, {
+      ...context,
+      flowId: flowSelection.flow.flowId,
+      stoId: flowSelection.sto.stoId,
+    });
+  } catch (error) {
+    await dependencies.tracer.failed(runtimeEvents.flowResolve, { ...context, error: traceError(error) });
+    throw error;
+  }
 
   return {
     ...execution,
@@ -154,12 +212,24 @@ export async function executeRuntimeScaffoldExecution(
 ): Promise<RuntimeScaffoldExecutedExecution> {
   dependencies.stageObserver?.('execute');
   const flowResolved = await resolveRuntimeScaffoldFlowExecution(execution, dependencies);
-  const flowResult = await dependencies.tracer.traceValue(runtimeEvents.flowExecute, {
+  const context = {
     descriptorId: flowResolved.descriptor.id,
     taskId: flowResolved.task.taskId,
     stoId: flowResolved.flowSelection.sto.stoId,
     flowId: flowResolved.flowSelection.flow.flowId,
-  }, () => dependencies.flowRunner.run(flowResolved));
+  };
+  await dependencies.tracer.started(runtimeEvents.flowExecute, context);
+  let flowResult;
+  try {
+    flowResult = await dependencies.flowRunner.run(flowResolved);
+    await dependencies.tracer.completed(runtimeEvents.flowExecute, {
+      ...context,
+      flowStatus: flowResult.status,
+    });
+  } catch (error) {
+    await dependencies.tracer.failed(runtimeEvents.flowExecute, { ...context, error: traceError(error) });
+    throw error;
+  }
 
   return {
     ...flowResolved,
@@ -183,19 +253,29 @@ export async function outputRuntimeScaffoldExecution(
   dependencies.stageObserver?.('output');
   const result = buildRuntimeScaffoldExecutionResultBase(execution);
   let traceSummary: RuntimeScaffoldTraceSummary | undefined;
-  const artifactRefs = await dependencies.tracer.traceValue(runtimeEvents.resultWrite, {
+  const context = {
     descriptorId: execution.descriptor.id,
     writeResult: execution.descriptor.output?.writeResult === true,
     writeTrace: execution.descriptor.output?.writeTrace === true,
-  }, () => {
+  };
+  await dependencies.tracer.started(runtimeEvents.resultWrite, context);
+  let artifactRefs;
+  try {
     traceSummary = buildRuntimeScaffoldTraceSummary(execution);
-    return dependencies.resultWriter.write({
+    artifactRefs = await dependencies.resultWriter.write({
       executionPath: execution.load.executionPath,
       descriptor: execution.descriptor,
       result,
       traceSummary,
     });
-  });
+    await dependencies.tracer.completed(runtimeEvents.resultWrite, {
+      ...context,
+      artifactRefs,
+    });
+  } catch (error) {
+    await dependencies.tracer.failed(runtimeEvents.resultWrite, { ...context, error: traceError(error) });
+    throw error;
+  }
 
   return {
     ...execution,
@@ -204,5 +284,20 @@ export async function outputRuntimeScaffoldExecution(
       traceSummary: traceSummary ?? buildRuntimeScaffoldTraceSummary(execution),
     },
     artifactRefs,
+  };
+}
+
+function traceError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    const maybeCode = (error as Error & { readonly code?: unknown }).code;
+    return {
+      name: error.name,
+      message: error.message,
+      ...(typeof maybeCode === 'string' ? { code: maybeCode } : {}),
+    };
+  }
+  return {
+    name: typeof error,
+    message: String(error),
   };
 }

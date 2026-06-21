@@ -1,35 +1,33 @@
 import { randomUUID } from 'node:crypto';
 import { TASK_PLANNING_HANDLER_KEY, resolvePocEventReaction } from '../events/EventReactionResolver.js';
-import { SystemTraceRecorder, type SystemTraceAdapter, type SystemTraceRecord } from '../../modules/SystemTrace/index.js';
-import { POC_TENANT_PROCESS_IDS, PocTenantProcessRuntime } from '../tenant-process/PocTenantProcess.js';
+import { SystemTraceRecorder, type SystemTraceAdapter } from '../../modules/SystemTrace/index.js';
+import {
+  PocTenantProcessLoadError,
+  PocTenantProcessLoader,
+  type PocTenantProcessResolution,
+} from './PocTenantProcessLoader.js';
+import { PocTenantProcessExplorer } from './PocTenantProcessExplorer.js';
 import type {
   PersistentQueueItem,
   StoredEvent,
   TaskStorageGateway,
-} from '../tenant-process/Test1/task-storage/index.js';
-
-export type ProcessChannelPlanner = {
-  resolve(tenantProcessId: string): unknown;
-  invokeProcessChannel(input: {
-    event: StoredEvent;
-    queueItem: PersistentQueueItem;
-    sourceTaskId: string;
-    correlationId: string;
-  }): Promise<{ workEntry: { id: string } }>;
-};
+} from '../task-storage/Test1/index.js';
 
 export class PlannerWorker {
-  private readonly tenantProcessRuntime: ProcessChannelPlanner;
+  private readonly tenantProcessExplorer: PocTenantProcessExplorer;
+  private readonly tenantProcessLoader: PocTenantProcessLoader;
   private readonly traceRecorder: SystemTraceRecorder;
 
   public constructor(
     private readonly workerId: string,
     private readonly gateway: TaskStorageGateway,
-    tenantProcessRuntime?: ProcessChannelPlanner,
+    tenantProcessExplorer: PocTenantProcessExplorer,
+    tenantProcessLoader: PocTenantProcessLoader,
     traceRecorder?: SystemTraceRecorder,
   ) {
-    this.traceRecorder = traceRecorder ?? new SystemTraceRecorder({ adapter: new GatewaySystemTraceAdapter(gateway) });
-    this.tenantProcessRuntime = tenantProcessRuntime ?? new PocTenantProcessRuntime(gateway, this.traceRecorder);
+    this.traceRecorder = traceRecorder ?? new SystemTraceRecorder({ adapter: new NoopSystemTraceAdapter() });
+    this.tenantProcessExplorer = tenantProcessExplorer;
+    this.tenantProcessLoader = tenantProcessLoader;
   }
 
   public async runOnce(): Promise<PersistentQueueItem | null> {
@@ -37,57 +35,100 @@ export class PlannerWorker {
     if (!item) return null;
 
     const correlationId = randomUUID();
+    let failureContext: Record<string, string> = {
+      correlationId,
+      sourceEventId: item.sourceEventId,
+      sourceQueueItemId: item.id,
+      requestedTenantProcessId: item.tenantProcessId,
+      tenantProcessId: item.tenantProcessId,
+      workerId: this.workerId,
+    };
 
     try {
       const event = await this.loadSourceEvent(item);
-      const context = this.traceContext(event, item, correlationId);
+      const reaction = this.validateHandler(event, item);
+      const context = this.traceContext(event, item, correlationId, reaction);
+      failureContext = context;
       await this.trace('poc.planner.queue-item.claimed', 'Queue item claimed', context);
-      this.validateHandler(event, item);
-      await this.trace('poc.planner.tenantprocess.resolution.started', 'TenantProcess resolution started', context);
-      this.tenantProcessRuntime.resolve(POC_TENANT_PROCESS_IDS.tenantProcessId);
-      await this.trace('poc.planner.tenantprocess.resolved', 'TenantProcess resolved', context);
-      await this.trace('poc.planner.tenantprocess.invocation.started', 'TenantProcess invocation requested by planner', context);
-      const result = await this.tenantProcessRuntime.invokeProcessChannel({
-        event,
-        queueItem: item,
-        sourceTaskId: event.sourceEntityId,
-        correlationId,
+      await this.trace('poc.planner.tenantprocess.discovery.started', 'TenantProcess discovery started', context);
+      const discoveries = await this.tenantProcessExplorer.discover();
+      await this.trace('poc.planner.tenantprocess.discovery.completed', 'TenantProcess discovery completed', {
+        ...context,
+        discoveredTenantProcessCount: String(discoveries.length),
       });
-      if (!result.workEntry.id) {
-        throw new Error(`TenantProcess invocation did not return a durable work entry for queue item: ${item.id}`);
-      }
-      const durableWorkEntry = (await this.gateway.listProcessWorkEntries()).find(
-        (entry) => entry.id === result.workEntry.id && entry.sourceQueueItemId === item.id,
-      );
-      if (!durableWorkEntry) {
-        throw new Error(`TenantProcess invocation did not durably create work entry: ${result.workEntry.id}`);
-      }
+      await this.trace('poc.planner.tenantprocess.loading.started', 'TenantProcess loading started', context);
+      const resolution = await this.tenantProcessLoader.load({ tenantProcessId: item.tenantProcessId });
+      const resolvedContext = this.resolvedTraceContext(context, resolution);
+      failureContext = resolvedContext;
+      await this.trace('poc.planner.tenantprocess.loaded', 'TenantProcess module loaded', resolvedContext);
+      await this.trace('poc.planner.tenantprocess.resolved', 'TenantProcess identity verified', resolvedContext);
+      const dispatch = this.resolveDispatch(resolution, event, item);
+      const dispatchContext = {
+        ...resolvedContext,
+        taskRef: dispatch.taskRef,
+        channelRef: dispatch.channelRef,
+        stoRef: dispatch.stoRef,
+        flowRef: dispatch.flowRef,
+        executionId: dispatch.executionId,
+      };
+      await this.trace('poc.tenantprocess.channel.entered', 'TenantProcess channel selected governed work', dispatchContext);
+      const workEntry = await this.gateway.createProcessWorkEntry({
+        sourceEventId: event.id,
+        sourceQueueItemId: item.id,
+        tenantProcessId: resolution.resolvedTenantProcessId,
+        channelId: dispatch.channelRef,
+        flowId: dispatch.flowRef,
+        executionId: dispatch.executionId,
+        workType: reaction.queueIntentType,
+        status: 'queued',
+        payload: {
+          taskRef: dispatch.taskRef,
+          stoRef: dispatch.stoRef,
+          requestId: dispatch.requestId,
+          reason: dispatch.reason,
+          flowParams: dispatch.flowParams,
+          sourceTaskId: event.sourceEntityId,
+          sourceEventId: event.id,
+          sourceQueueItemId: item.id,
+        },
+      });
+      await this.trace('poc.tenantprocess.work-entry.confirmed', 'Governed execution work entry created', {
+        ...dispatchContext,
+        workEntryId: workEntry.id,
+        workEntryStatus: workEntry.status,
+      });
       const completed = await this.gateway.completePersistentQueueItem(item.id);
-      await this.trace(
-        'poc.planner.queue-item.completed',
-        'Queue item completed after TenantProcess work persistence',
-        { ...context, workEntryId: result.workEntry.id },
-      );
+      await this.trace('poc.planner.queue-item.completed', 'Planner queue item completed after execution dispatch', {
+        ...dispatchContext,
+        workEntryId: workEntry.id,
+        queueStatus: completed.status,
+      });
       return completed;
     } catch (error) {
+      const failure = this.failureDetails(error);
+      const failedContext = {
+        ...failureContext,
+        failureCode: failure.code,
+        failureStage: failure.stage,
+      };
       await this.traceRecorder.trace({
-        operation: 'poc.planner.failure',
+        operation: failure.operation,
         phase: 'ERROR',
         severity: 'error',
         status: 'error',
         correlationId,
-        message: error instanceof Error ? error.message : 'Unknown planner failure.',
+        message: failure.message,
         component: 'PlannerWorker',
-        context: {
-          correlationId,
-          sourceEventId: item.sourceEventId,
-          sourceQueueItemId: item.id,
-          tenantProcessId: POC_TENANT_PROCESS_IDS.tenantProcessId,
-        },
+        context: failedContext,
       });
-      await this.gateway.failPersistentQueueItem(
-        item.id,
-        error instanceof Error ? error.message : 'Unknown planner failure.',
+      const failed = await this.gateway.failPersistentQueueItem(item.id, `${failure.code}: ${failure.message}`);
+      await this.traceFailure(
+        'poc.planner.queue-item.failed',
+        'Queue item failed before governed execution dispatch',
+        {
+          ...failedContext,
+          queueStatus: failed.status,
+        },
       );
       throw error;
     }
@@ -99,7 +140,7 @@ export class PlannerWorker {
     return event;
   }
 
-  private validateHandler(event: StoredEvent, item: PersistentQueueItem): void {
+  private validateHandler(event: StoredEvent, item: PersistentQueueItem): NonNullable<ReturnType<typeof resolvePocEventReaction>> {
     const reaction = resolvePocEventReaction(event.eventType);
     if (!reaction || reaction.id !== item.eventReactionId || reaction.handlerKey !== item.handlerKey) {
       throw new Error(`No matching event reaction handler for queue item: ${item.id}`);
@@ -108,15 +149,144 @@ export class PlannerWorker {
     if (item.handlerKey !== TASK_PLANNING_HANDLER_KEY) {
       throw new Error(`Unsupported queue handler: ${item.handlerKey}`);
     }
+    return reaction;
   }
 
-  private traceContext(event: StoredEvent, item: PersistentQueueItem, correlationId: string): Record<string, string> {
+  private traceContext(
+    event: StoredEvent,
+    item: PersistentQueueItem,
+    correlationId: string,
+    reaction: NonNullable<ReturnType<typeof resolvePocEventReaction>>,
+  ): Record<string, string> {
     return {
       correlationId,
       sourceTaskId: event.sourceEntityId,
       sourceEventId: event.id,
       sourceQueueItemId: item.id,
-      tenantProcessId: POC_TENANT_PROCESS_IDS.tenantProcessId,
+      tenantProcessId: item.tenantProcessId,
+      requestedTenantProcessId: item.tenantProcessId,
+      workerId: this.workerId,
+      eventReactionId: reaction.id,
+      intentType: reaction.queueIntentType,
+      handlerKey: reaction.handlerKey,
+    };
+  }
+
+  private resolvedTraceContext(
+    context: Record<string, string>,
+    resolution: PocTenantProcessResolution,
+  ): Record<string, string> {
+    return {
+      ...context,
+      loaderKey: resolution.loaderKey,
+      requestedTenantProcessId: resolution.requestedTenantProcessId,
+      resolvedTenantProcessId: resolution.resolvedTenantProcessId,
+    };
+  }
+
+  private resolveDispatch(
+    resolution: PocTenantProcessResolution,
+    event: StoredEvent,
+    item: PersistentQueueItem,
+  ): {
+    taskRef: string;
+    channelRef: string;
+    stoRef: string;
+    flowRef: string;
+    executionId: string;
+    requestId: string;
+    reason?: string;
+    flowParams?: Record<string, unknown>;
+  } {
+    const tenantProcess = resolution.tenantProcess as unknown as {
+      readonly name: string;
+      readonly tasks: Record<string, {
+        readonly stateDefinition: { readonly defaults?: Record<string, unknown> };
+        readonly channel?: { readonly executable: (context: any) => { readonly stoName: string; readonly reason?: string } };
+        readonly stos: Record<string, { readonly flow: unknown }>;
+      }>;
+      readonly channels: Record<string, unknown>;
+      readonly stos: Record<string, { readonly flow: unknown }>;
+    };
+
+    const taskEntries = Object.entries(tenantProcess.tasks);
+    if (taskEntries.length !== 1) {
+      throw new Error(`POC planner requires exactly one Task in ${tenantProcess.name}; found ${taskEntries.length}.`);
+    }
+
+    const [taskRef, task] = taskEntries[0];
+    if (!task.channel) {
+      throw new Error(`Task ${taskRef} does not declare a Channel for planning.`);
+    }
+
+    const channelEntry = Object.entries(tenantProcess.channels).find(([, channel]) => channel === task.channel);
+    if (!channelEntry) {
+      throw new Error(`Task ${taskRef} references a Channel outside the TenantProcess channel collection.`);
+    }
+    const [channelRef] = channelEntry;
+
+    const defaults = task.stateDefinition.defaults;
+    if (!defaults) {
+      throw new Error(`Task ${taskRef} references a StateDefinition without defaults.`);
+    }
+
+    const allowedStos = Object.entries(task.stos);
+    const request = task.channel.executable({
+      taskRef,
+      state: {
+        read: (path: string) => defaults[path],
+        snapshot: () => ({ ...defaults }),
+      },
+      params: {
+        sourceTaskId: event.sourceEntityId,
+        sourceEventId: event.id,
+        sourceQueueItemId: item.id,
+      },
+      selectSto: (stoName: string, reason: string) => ({ type: 'sto', stoName, reason }),
+    });
+
+    const selectedEntry = allowedStos.find(([stoName]) => stoName === request.stoName);
+    if (!selectedEntry) {
+      throw new Error(`Channel ${channelRef} selected STO name ${request.stoName} outside Task ${taskRef}.`);
+    }
+    const [stoRef, sto] = selectedEntry;
+    if (tenantProcess.stos[stoRef] !== sto) {
+      throw new Error(`Task ${taskRef} STO ${stoRef} is not the registered TenantProcess STO object.`);
+    }
+    if (typeof sto.flow?.executable !== 'function') {
+      throw new Error(`Selected STO ${stoRef} does not contain an executable Flow.`);
+    }
+
+    return {
+      taskRef,
+      channelRef,
+      stoRef,
+      flowRef: stoRef,
+      executionId: randomUUID(),
+      requestId: randomUUID(),
+      reason: request.reason,
+    };
+  }
+
+  private failureDetails(error: unknown): {
+    code: string;
+    stage: string;
+    operation: string;
+    message: string;
+  } {
+    if (error instanceof PocTenantProcessLoadError) {
+      return {
+        code: error.code,
+        stage: 'tenantprocess-load',
+        operation: 'poc.planner.tenantprocess.loading.failed',
+        message: error.message,
+      };
+    }
+    return {
+      code: 'POC_PLANNER_FAILURE',
+      stage: 'planner',
+      operation: 'poc.planner.failure',
+      message: error instanceof Error ? error.message : 'Unknown planner failure.',
     };
   }
 
@@ -132,14 +302,22 @@ export class PlannerWorker {
       context,
     });
   }
+
+  private async traceFailure(operation: string, message: string, context: Record<string, string>): Promise<void> {
+    await this.traceRecorder.trace({
+      operation,
+      phase: 'ERROR',
+      severity: 'error',
+      status: 'error',
+      correlationId: context.correlationId,
+      message,
+      component: 'PlannerWorker',
+      context,
+    });
+  }
 }
 
-export class GatewaySystemTraceAdapter implements SystemTraceAdapter {
-  public constructor(private readonly gateway: TaskStorageGateway) {}
-
-  public async append(record: SystemTraceRecord): Promise<void> {
-    await this.gateway.appendSystemTraceRecord(record as unknown as Record<string, unknown>);
-  }
-
+class NoopSystemTraceAdapter implements SystemTraceAdapter {
+  public async append(): Promise<void> {}
   public async flush(): Promise<void> {}
 }

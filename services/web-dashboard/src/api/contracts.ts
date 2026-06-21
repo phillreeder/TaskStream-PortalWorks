@@ -22,7 +22,7 @@ export type InspectionProvenance = {
   tenantId?: string;
   tenantProcessId?: string;
   entityType?: string;
-  sourceType: 'tenant-process' | 'task-update-signal' | 'event' | 'persistent-queue' | 'process-work' | 'system-registration';
+  sourceType: 'tenant-process' | 'task-update-signal' | 'event' | 'persistent-queue' | 'process-work' | 'system-registration' | 'system-trace';
 };
 
 export type InspectionRecord = {

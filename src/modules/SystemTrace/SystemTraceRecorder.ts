@@ -151,7 +151,10 @@ export class SystemTraceBoundTracer {
     const call = normalizeRecordCall(callOrOperationKey, data);
     return this.recorder.trace({
       ...this.resolve(call.operationKey, call.metadata),
-      phase: 'POINT',
+      phase: call.phase ?? 'POINT',
+      severity: call.severity,
+      status: call.status,
+      message: call.message,
       data: call.data,
       context: call.context,
     });

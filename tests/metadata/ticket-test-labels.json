@@ -273,7 +273,7 @@
     },
     {
       "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
-      "testName": "closes RuntimeScaffold traced failure paths with END error status while preserving failure results",
+      "testName": "records RuntimeScaffold traced failure paths with ERROR status while preserving failure results",
       "labels": {
         "verificationSet": "systemtrace-wireup",
         "tickets": [
@@ -790,6 +790,189 @@
         "owner": "TaskStream POC planner/TenantProcess/log inspection path",
         "testConcern": "inspection API end-to-end execution visibility",
         "runtimeSlice": "poc-tenant-work-log"
+      }
+    },
+    {
+      "file": "src/modules/SystemTrace/__tests__/SqlSystemTraceAdapter.node.test.ts",
+      "testName": "[tickets: SYST-TRACE-API-001] SQL SystemTrace adapter preserves real trace records",
+      "labels": {
+        "verificationSet": "systemtrace-sql-runtime-scaffold-v1",
+        "tickets": [
+          "SYST-TRACE-API-001"
+        ],
+        "requirements": [
+          "REQ-SYST-TRACE-API-001",
+          "REQ-SYST-TRACE-SQL-001",
+          "REQ-SYST-001",
+          "REQ-SYST-004",
+          "REQ-SYST-012",
+          "REQ-SYST-014"
+        ],
+        "ownerType": "module",
+        "owner": "SystemTrace",
+        "testConcern": "sql-adapter-fidelity",
+        "runtimeSlice": "systemtrace-sql-inspection"
+      }
+    },
+    {
+      "file": "src/modules/SystemTrace/__tests__/SqlSystemTraceAdapter.node.test.ts",
+      "testName": "[tickets: SYST-TRACE-API-001] SQL SystemTrace adapter migrates legacy POC trace table",
+      "labels": {
+        "verificationSet": "systemtrace-sql-runtime-scaffold-v1",
+        "tickets": [
+          "SYST-TRACE-API-001"
+        ],
+        "requirements": [
+          "REQ-SYST-TRACE-API-001",
+          "REQ-SYST-TRACE-SQL-001",
+          "REQ-SYST-001",
+          "REQ-SYST-004",
+          "REQ-SYST-012",
+          "REQ-SYST-014"
+        ],
+        "ownerType": "module",
+        "owner": "SystemTrace",
+        "testConcern": "sql-adapter-legacy-schema-migration",
+        "runtimeSlice": "systemtrace-sql-inspection"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
+      "testName": "emits explicit SystemTrace records through ModuleLink for descriptor loading and normalization",
+      "labels": {
+        "verificationSet": "systemtrace-sql-runtime-scaffold-v1",
+        "tickets": [
+          "SYST-TRACE-API-001"
+        ],
+        "requirements": [
+          "REQ-SYST-TRACE-API-001",
+          "REQ-SYST-001",
+          "REQ-SYST-004",
+          "REQ-SYST-023",
+          "REQ-SYST-024",
+          "REQ-SYST-030"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "trace-does-not-own-execution",
+        "runtimeSlice": "flowOnly"
+      }
+    },
+    {
+      "file": "src/modules/runtime-scaffold/__tests__/ScaffoldExecutionLoader.test.ts",
+      "testName": "records RuntimeScaffold traced failure paths with ERROR status while preserving failure results",
+      "labels": {
+        "verificationSet": "systemtrace-sql-runtime-scaffold-v1",
+        "tickets": [
+          "SYST-TRACE-API-001"
+        ],
+        "requirements": [
+          "REQ-SYST-TRACE-API-001",
+          "REQ-SYST-001",
+          "REQ-SYST-004",
+          "REQ-SYST-023"
+        ],
+        "ownerType": "concept",
+        "owner": "RuntimeScaffold",
+        "testConcern": "result-semantics",
+        "runtimeSlice": "flowOnly"
+      }
+    },
+    {
+      "file": "src/poc/planning/__tests__/PlannerWorker.node.test.ts",
+      "labels": {
+        "verificationSet": "systemtrace-sql-runtime-scaffold-v1",
+        "tickets": [
+          "SYST-TRACE-API-001"
+        ],
+        "requirements": [
+          "REQ-SYST-TRACE-API-001",
+          "REQ-SYST-TRACE-SQL-001",
+          "REQ-SYST-001",
+          "REQ-SYST-012",
+          "REQ-SYST-014"
+        ],
+        "ownerType": "applicationPath",
+        "owner": "TaskStream/src/poc",
+        "testConcern": "single-trace-authority",
+        "runtimeSlice": "poc-systemtrace-sql"
+      }
+    },
+    {
+      "file": "src/modules/API/__tests__/TaskApi.node.test.ts",
+      "testName": "[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle through inspection APIs",
+      "labels": {
+        "verificationSet": "systemtrace-sql-runtime-scaffold-v1",
+        "tickets": [
+          "SYST-TRACE-API-001"
+        ],
+        "requirements": [
+          "REQ-SYST-TRACE-API-001",
+          "REQ-SYST-TRACE-SQL-001",
+          "REQ-SYST-001",
+          "REQ-SYST-012",
+          "REQ-SYST-014"
+        ],
+        "ownerType": "applicationPath",
+        "owner": "TaskStream/src/modules/task-storage",
+        "testConcern": "real-trace-api",
+        "runtimeSlice": "poc-systemtrace-sql"
+      }
+    },
+    {
+      "file": "src/poc/planning/__tests__/PocTenantProcessLoader.node.test.ts",
+      "labels": {
+        "verificationSet": "poc-tenantprocess-lazy-load-v1",
+        "tickets": [
+          "POC-TENANTPROCESS-LAZY-LOAD-001"
+        ],
+        "requirements": [
+          "REQ-POC-TNP-LOAD-001",
+          "REQ-POC-TNP-LOAD-002"
+        ],
+        "ownerType": "applicationPath",
+        "owner": "TaskStream/src/poc",
+        "testConcern": "static-loader-boundary-and-real-definition-resolution",
+        "runtimeSlice": "poc-tenantprocess-load-fail"
+      }
+    },
+    {
+      "file": "src/poc/planning/__tests__/PlannerWorker.node.test.ts",
+      "testName": "[tickets: POC-TENANTPROCESS-LAZY-LOAD-001] PlannerWorker resolves real TenantProcess then fails before execution",
+      "labels": {
+        "verificationSet": "poc-tenantprocess-lazy-load-v1",
+        "tickets": [
+          "POC-TENANTPROCESS-LAZY-LOAD-001"
+        ],
+        "requirements": [
+          "REQ-POC-TNP-LOAD-001",
+          "REQ-POC-TNP-FAIL-001",
+          "REQ-POC-TNP-FAIL-002",
+          "REQ-POC-TNP-TRACE-001",
+          "REQ-POC-TNP-QUEUE-001"
+        ],
+        "ownerType": "applicationPath",
+        "owner": "TaskStream/src/poc/planning",
+        "testConcern": "execution-unavailable-queue-failure-zero-work",
+        "runtimeSlice": "poc-tenantprocess-load-fail"
+      }
+    },
+    {
+      "file": "src/modules/API/__tests__/TaskApi.node.test.ts",
+      "testName": "[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle through inspection APIs",
+      "labels": {
+        "verificationSet": "poc-tenantprocess-lazy-load-v1",
+        "tickets": [
+          "POC-TENANTPROCESS-LAZY-LOAD-001"
+        ],
+        "requirements": [
+          "REQ-POC-TNP-TRACE-001",
+          "REQ-POC-TNP-QUEUE-001"
+        ],
+        "ownerType": "applicationPath",
+        "owner": "TaskStream/src/modules/task-storage",
+        "testConcern": "inspection-api-truthful-failure-sequence",
+        "runtimeSlice": "poc-tenantprocess-load-fail"
       }
     }
   ],

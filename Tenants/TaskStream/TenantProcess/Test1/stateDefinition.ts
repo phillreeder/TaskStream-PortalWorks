@@ -1,5 +1,4 @@
-import { defineState } from '../../../definitionRuntime/state/defineState.js';
-import { IEBBETA_TEST1_TENANT_PROCESS_IDS } from './ids.js';
+import { defineState } from '@TaskStream/App/definitionRuntime/state/defineState.js';
 
 export const test1ProcessWorkStateDefinition = defineState<{
   status: 'pending' | 'prepared' | 'materialized' | 'failed';
@@ -8,7 +7,7 @@ export const test1ProcessWorkStateDefinition = defineState<{
   workEntryId: string;
   lastError: string;
 }>()({
-  id: IEBBETA_TEST1_TENANT_PROCESS_IDS.stateDefinition,
+  id: 'processWork',
   version: 1,
   strict: true,
 

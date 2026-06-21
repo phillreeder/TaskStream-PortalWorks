@@ -124,7 +124,10 @@ export class ModuleLinkSystemTraceBoundTracer {
     const call = typeof callOrOperationKey === 'string' ? { operationKey: callOrOperationKey, data } : callOrOperationKey;
     return this.facade.record({
       ...this.resolve(call.operationKey, call.metadata),
-      phase: 'POINT',
+      phase: call.phase ?? 'POINT',
+      severity: call.severity,
+      status: call.status,
+      message: call.message,
       data: call.data,
       context: call.context,
     });

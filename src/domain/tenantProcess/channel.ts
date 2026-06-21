@@ -1,11 +1,11 @@
 import type { ChannelExecutable } from './types.js';
 
 /**
- * Defines a TenantProcess Channel while providing the canonical contextual
- * typing boundary for `(ctx) => ChannelSTORequest`.
+ * Defines a TenantProcess Channel while preserving the canonical contextual
+ * typing boundary for synchronous STO selection.
  *
- * Runtime context construction and execution remain outside the domain
- * definition helper. The planning system supplies the context later.
+ * STO selection is provided by the runtime through ctx.selectSto(...), so
+ * authored Channels do not import STO definitions or selection libraries.
  */
 export function channel(executable: ChannelExecutable): ChannelExecutable {
   return executable;

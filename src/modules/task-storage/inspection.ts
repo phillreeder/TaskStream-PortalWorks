@@ -1,13 +1,13 @@
-import type { TaskStorageGateway } from '../../poc/tenant-process/Test1/task-storage/TaskStorageGateway.js';
+import type { TaskStorageGateway } from '../../poc/task-storage/Test1/TaskStorageGateway.js';
+import type { SqlSystemTraceQueryRepository, SqlSystemTraceRecord } from '../SystemTrace/sqlTracePersistence.js';
 import type {
   EntityStructureVersion,
   StoredTask,
   PersistentQueueItem,
-  PocExecutionTraceRecord,
   ProcessWorkEntry,
   StoredEvent,
   TaskUpdateSignal,
-} from '../../poc/tenant-process/Test1/task-storage/types.js';
+} from '../../poc/task-storage/Test1/types.js';
 
 export type InspectionCollectionId =
   | 'tasks'
@@ -28,7 +28,7 @@ export type InspectionProvenance = {
   tenantId?: string;
   tenantProcessId?: string;
   entityType?: string;
-  sourceType: 'tenant-process' | 'task-update-signal' | 'event' | 'persistent-queue' | 'process-work' | 'system-registration';
+  sourceType: 'tenant-process' | 'task-update-signal' | 'event' | 'persistent-queue' | 'process-work' | 'system-registration' | 'system-trace';
 };
 
 export type InspectionRecord = {
@@ -111,6 +111,7 @@ export function listInspectionCollections(): InspectionCollection[] {
 
 export async function listInspectionRecords(
   gateway: TaskStorageGateway,
+  traceRepository: SqlSystemTraceQueryRepository,
   collectionId: string,
   filters: InspectionFilters,
 ): Promise<InspectionRecord[] | null> {
@@ -138,7 +139,7 @@ export async function listInspectionRecords(
   }
 
   if (collectionId === 'system-trace-records') {
-    return (await gateway.listSystemTraceRecords()).map(toSystemTraceInspectionRecord);
+    return traceRepository.list().map(toSystemTraceInspectionRecord);
   }
 
   if (collectionId === 'entity-structure-versions') {
@@ -150,6 +151,7 @@ export async function listInspectionRecords(
 
 export async function listExecutionLogRecords(
   gateway: TaskStorageGateway,
+  traceRepository: SqlSystemTraceQueryRepository,
   selectedId: string,
 ): Promise<ExecutionLogRecord[]> {
   const [tasks, events, queueItems, workEntries, traceRecords] = await Promise.all([
@@ -157,7 +159,7 @@ export async function listExecutionLogRecords(
     gateway.listEvents(),
     gateway.listPersistentQueueItems(),
     gateway.listProcessWorkEntries(),
-    gateway.listSystemTraceRecords(),
+    Promise.resolve(traceRepository.list()),
   ]);
   const ids = resolveExecutionIds(selectedId, tasks, events, queueItems, workEntries, traceRecords);
   if (!ids) return [];
@@ -323,7 +325,7 @@ function toWorkEntryInspectionRecord(entry: ProcessWorkEntry): InspectionRecord 
   };
 }
 
-function toSystemTraceInspectionRecord(record: PocExecutionTraceRecord): InspectionRecord {
+function toSystemTraceInspectionRecord(record: SqlSystemTraceRecord): InspectionRecord {
   return {
     id: record.id,
     collectionId: 'system-trace-records',
@@ -332,7 +334,7 @@ function toSystemTraceInspectionRecord(record: PocExecutionTraceRecord): Inspect
     provenance: {
       tenantProcessId: record.tenantProcessId ?? undefined,
       entityType: 'SystemTraceRecord',
-      sourceType: 'system-registration',
+      sourceType: 'system-trace',
     },
     data: record as unknown as Record<string, unknown>,
   };
@@ -352,7 +354,7 @@ function toStructureInspectionRecord(structure: EntityStructureVersion): Inspect
   };
 }
 
-function toExecutionLogRecord(record: PocExecutionTraceRecord): ExecutionLogRecord {
+function toExecutionLogRecord(record: SqlSystemTraceRecord): ExecutionLogRecord {
   return {
     id: `trace:${record.id}`,
     kind: 'system-trace',
@@ -371,7 +373,7 @@ function toExecutionLogRecord(record: PocExecutionTraceRecord): ExecutionLogReco
       executionId: record.executionId ?? undefined,
       workEntryId: record.workEntryId ?? undefined,
     }),
-    data: record.raw,
+    data: record.raw as unknown as Record<string, unknown>,
   };
 }
 
@@ -381,7 +383,7 @@ function resolveExecutionIds(
   events: readonly StoredEvent[],
   queueItems: readonly PersistentQueueItem[],
   workEntries: readonly ProcessWorkEntry[],
-  traceRecords: readonly PocExecutionTraceRecord[],
+  traceRecords: readonly SqlSystemTraceRecord[],
 ): {
   sourceTaskId?: string;
   sourceEventId?: string;
@@ -430,7 +432,7 @@ function resolveExecutionIds(
   return null;
 }
 
-function traceMatches(record: PocExecutionTraceRecord, ids: NonNullable<ReturnType<typeof resolveExecutionIds>>): boolean {
+function traceMatches(record: SqlSystemTraceRecord, ids: NonNullable<ReturnType<typeof resolveExecutionIds>>): boolean {
   return Boolean(
     (ids.correlationId && record.correlationId === ids.correlationId)
     || (ids.sourceTaskId && record.sourceTaskId === ids.sourceTaskId)

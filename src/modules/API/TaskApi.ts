@@ -1,11 +1,13 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { routeTaskStorageRequest } from '../task-storage/routes.js';
-import type { TaskStorageGateway } from '../../poc/tenant-process/Test1/task-storage/TaskStorageGateway.js';
+import { routeTaskStorageRequest, type TaskStorageRouteOptions } from '../task-storage/routes.js';
+import type { TaskStorageGateway } from '../../poc/task-storage/Test1/TaskStorageGateway.js';
 
-export function createTaskApi(gateway: TaskStorageGateway): Server {
+export type TaskApiOptions = TaskStorageRouteOptions;
+
+export function createTaskApi(gateway: TaskStorageGateway, options: TaskApiOptions): Server {
   return createServer(async (request, response) => {
     try {
-      await routeRequest(request, response, gateway);
+      await routeRequest(request, response, gateway, options);
     } catch (error) {
       sendJson(response, 500, {
         error: error instanceof Error ? error.message : 'Unexpected error.',
@@ -18,6 +20,7 @@ async function routeRequest(
   request: IncomingMessage,
   response: ServerResponse,
   gateway: TaskStorageGateway,
+  options: TaskApiOptions,
 ): Promise<void> {
   const method = request.method ?? 'GET';
   const url = new URL(request.url ?? '/', 'http://localhost');
@@ -27,7 +30,7 @@ async function routeRequest(
     return;
   }
 
-  if (await routeTaskStorageRequest(request, response, gateway, url)) {
+  if (await routeTaskStorageRequest(request, response, gateway, options, url)) {
     return;
   }
 

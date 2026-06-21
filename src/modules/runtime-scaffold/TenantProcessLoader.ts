@@ -98,10 +98,10 @@ function resolveModuleSpecifier(referencePath: string, executionPath?: string): 
 }
 
 function selectTenantProcessExport(moduleNamespace: Record<string, unknown>, reference: string): unknown {
-  const selected = moduleNamespace.default ?? moduleNamespace.tenantProcess ?? moduleNamespace.runtimeSpineTenantProcess;
+  const selected = moduleNamespace.tenantProcess;
   if (selected === undefined) {
     throw new RuntimeScaffoldExecutionError({
-      message: `TenantProcess module did not export default, tenantProcess, or runtimeSpineTenantProcess: ${reference}`,
+      message: `TenantProcess module must explicitly export tenantProcess: ${reference}`,
       code: 'TENANT_PROCESS_LOAD_FAILED',
       phase: 'tenant-process',
       details: { reference },

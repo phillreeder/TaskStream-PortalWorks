@@ -1,7 +1,9 @@
-import { TASK_STRUCTURE } from '../../../entity-structures/index.js';
+import { TASK_STRUCTURE } from '../../entity-structures/index.js';
 
 export const TASK_ENTITY_TYPE = TASK_STRUCTURE.entityType;
 export const TASK_SCHEMA_VERSION = TASK_STRUCTURE.version;
+
+export const DEFAULT_TENANT_PROCESS_ID = 'TaskStream/Test1' as const;
 
 export type TaskData = { name: string };
 export type CreateTaskInput = { data: TaskData };
@@ -10,7 +12,7 @@ export type StoredTask = {
   id: string;
   entityType: typeof TASK_ENTITY_TYPE;
   tenantId: 'IEBBeta';
-  tenantProcessId: 'Test1';
+  tenantProcessId: string;
   schemaVersion: number;
   data: TaskData;
   createdAt: string;
@@ -41,6 +43,7 @@ export type PersistentQueueStatus = 'queued' | 'claimed' | 'completed' | 'failed
 export type PersistentQueueItem = {
   id: string;
   sourceEventId: string;
+  tenantProcessId: string;
   eventReactionId: string;
   intentType: string;
   handlerKey: string;
@@ -85,7 +88,7 @@ export type TaskUpdateSignal = {
   id: string;
   taskId: string;
   tenantId: 'IEBBeta';
-  tenantProcessId: 'Test1';
+  tenantProcessId: string;
   status: 'queued';
   createdAt: string;
 };
@@ -95,26 +98,4 @@ export type EntityStructureVersion = {
   version: number;
   structure: Record<string, unknown>;
   createdAt: string;
-};
-
-export type PocExecutionTraceRecord = {
-  id: string;
-  seq: number;
-  timestamp: string;
-  family: string;
-  severity: string | null;
-  operation: string;
-  phase: string | null;
-  status: string | null;
-  message: string | null;
-  correlationId: string | null;
-  sourceTaskId: string | null;
-  sourceEventId: string | null;
-  sourceQueueItemId: string | null;
-  tenantProcessId: string | null;
-  channelId: string | null;
-  flowId: string | null;
-  executionId: string | null;
-  workEntryId: string | null;
-  raw: Record<string, unknown>;
 };

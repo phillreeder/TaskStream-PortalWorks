@@ -1,0 +1,136 @@
+import { readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { validateTenantProcessDefinition } from '../../domain/tenantProcess/index.js';
+import {
+  PocTenantProcessLoadError,
+  tenantProcessCompositeKey,
+  type DiscoverableTenantProcess,
+  type PocTenantProcessModule,
+} from './PocTenantProcessLoader.js';
+import { PocTenantProcessLoadParameterStore } from './PocTenantProcessLoadParameterStore.js';
+
+export type PocTenantProcessDiscovery = {
+  readonly tenantProcessId: string;
+  readonly tenantProcessIdentity: DiscoverableTenantProcess['id'];
+  readonly loaderKey: string;
+  readonly entryModuleUrl: string;
+};
+
+export class PocTenantProcessExplorer {
+  public constructor(
+    private readonly tenantsRoot: string,
+    private readonly parameterStore: PocTenantProcessLoadParameterStore,
+  ) {}
+
+  public async discover(): Promise<ReadonlyArray<PocTenantProcessDiscovery>> {
+    const discoveries: PocTenantProcessDiscovery[] = [];
+    const tenantDirectories = await this.readDirectories(this.tenantsRoot);
+
+    for (const tenantDirectory of tenantDirectories) {
+      const processRoot = join(this.tenantsRoot, tenantDirectory, 'TenantProcess');
+      const processDirectories = await this.readDirectories(processRoot, true);
+
+      for (const processDirectory of processDirectories) {
+        const entryModuleUrl = pathToFileURL(join(processRoot, processDirectory, 'index.js')).href;
+        const loaderKey = `filesystem:${tenantDirectory}/TenantProcess/${processDirectory}`;
+        let tenantProcess: DiscoverableTenantProcess;
+
+        try {
+          const moduleNamespace = await this.importModule(entryModuleUrl, loaderKey);
+          tenantProcess = this.selectDiscoveredTenantProcess(moduleNamespace, loaderKey);
+        } catch (error) {
+          if (this.isRejectedCandidate(error)) continue;
+          throw error;
+        }
+
+        const expectedIdentity = { tenant: tenantDirectory, process: processDirectory };
+        const expectedId = tenantProcessCompositeKey(expectedIdentity);
+        const tenantProcessId = tenantProcessCompositeKey(tenantProcess.id);
+        if (tenantProcessId !== expectedId) {
+          throw new PocTenantProcessLoadError(
+            'POC_TENANT_PROCESS_IDENTITY_MISMATCH',
+            `TenantProcess identity ${tenantProcessId} does not match filesystem identity ${expectedId}.`,
+            { tenantProcessId, expectedTenantProcessId: expectedId, loaderKey },
+          );
+        }
+
+        const existing = this.parameterStore.get(tenantProcessId);
+        if (existing && existing.entryModuleUrl !== entryModuleUrl) {
+          throw new PocTenantProcessLoadError(
+            'POC_TENANT_PROCESS_DUPLICATE_ID',
+            `TenantProcess discovery found duplicate ID ${tenantProcessId}.`,
+            { tenantProcessId, firstLoaderKey: existing.loaderKey, duplicateLoaderKey: loaderKey },
+          );
+        }
+
+        this.parameterStore.set(tenantProcessId, { loaderKey, entryModuleUrl });
+        discoveries.push({ tenantProcessId, tenantProcessIdentity: tenantProcess.id, loaderKey, entryModuleUrl });
+      }
+    }
+
+    return discoveries;
+  }
+
+  private isRejectedCandidate(error: unknown): boolean {
+    return error instanceof PocTenantProcessLoadError && (
+      error.code === 'POC_TENANT_PROCESS_ENTRY_EXPORT_MISSING' ||
+      error.code === 'POC_TENANT_PROCESS_ENTRY_EXPORT_INVALID' ||
+      error.code === 'POC_TENANT_PROCESS_MODULE_IMPORT_FAILED'
+    );
+  }
+
+  private async readDirectories(root: string, missingIsEmpty = false): Promise<string[]> {
+    try {
+      const entries = await readdir(root, { withFileTypes: true });
+      return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    } catch (error) {
+      if (missingIsEmpty && error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
+      throw new PocTenantProcessLoadError(
+        'POC_TENANT_PROCESS_DISCOVERY_FAILED',
+        `TenantProcess discovery failed while reading ${root}.`,
+        { discoveryRoot: root },
+        { cause: error },
+      );
+    }
+  }
+
+  private async importModule(entryModuleUrl: string, loaderKey: string): Promise<PocTenantProcessModule> {
+    try {
+      return (await import(entryModuleUrl)) as PocTenantProcessModule;
+    } catch (error) {
+      throw new PocTenantProcessLoadError(
+        'POC_TENANT_PROCESS_MODULE_IMPORT_FAILED',
+        `TenantProcess discovery import failed for ${loaderKey}.`,
+        { loaderKey, entryModuleUrl },
+        { cause: error },
+      );
+    }
+  }
+
+  private selectDiscoveredTenantProcess(
+    moduleNamespace: PocTenantProcessModule,
+    loaderKey: string,
+  ): DiscoverableTenantProcess {
+    const candidate = moduleNamespace.tenantProcess;
+    if (candidate === undefined) {
+      throw new PocTenantProcessLoadError(
+        'POC_TENANT_PROCESS_ENTRY_EXPORT_MISSING',
+        `TenantProcess entry module must explicitly export tenantProcess for ${loaderKey}.`,
+        { loaderKey, exportedKeys: Object.keys(moduleNamespace).sort().join(',') },
+      );
+    }
+
+    try {
+      validateTenantProcessDefinition(candidate);
+      return candidate as DiscoverableTenantProcess;
+    } catch (error) {
+      throw new PocTenantProcessLoadError(
+        'POC_TENANT_PROCESS_ENTRY_EXPORT_INVALID',
+        `Explicit tenantProcess export failed validation for ${loaderKey}.`,
+        { loaderKey, exportedKeys: Object.keys(moduleNamespace).sort().join(',') },
+        { cause: error },
+      );
+    }
+  }
+}

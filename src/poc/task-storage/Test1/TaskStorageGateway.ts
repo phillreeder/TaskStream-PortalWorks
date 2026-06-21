@@ -3,7 +3,6 @@ import type {
   CreateTaskInput,
   EntityStructureVersion,
   PersistentQueueItem,
-  PocExecutionTraceRecord,
   ProcessWorkEntry,
   RecordEventInput,
   StoredTask,
@@ -28,8 +27,6 @@ export interface TaskStorageGateway {
   failPersistentQueueItem(id: string, lastError: string): Promise<PersistentQueueItem>;
   createProcessWorkEntry(input: CreateProcessWorkEntryInput): Promise<ProcessWorkEntry>;
   listProcessWorkEntries(): Promise<ProcessWorkEntry[]>;
-  appendSystemTraceRecord(record: Record<string, unknown>): Promise<void>;
-  listSystemTraceRecords(): Promise<PocExecutionTraceRecord[]>;
   listEntityStructureVersions(): Promise<EntityStructureVersion[]>;
   getCurrentTaskStructure(): Promise<EntityStructureVersion>;
   resetDatabase(): Promise<void>;

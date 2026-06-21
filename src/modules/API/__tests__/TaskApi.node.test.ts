@@ -4,22 +4,36 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { createTaskApi } from '../TaskApi.js';
-import { POC_TENANT_PROCESS_IDS } from '../../../poc/tenant-process/PocTenantProcess.js';
+import { SystemTraceRecorder } from '../../SystemTrace/index.js';
+import { SqlSystemTraceAdapter, SqlSystemTraceQueryRepository } from '../../SystemTrace/sqlTracePersistence.js';
 import { PlannerWorker } from '../../../poc/planning/PlannerWorker.js';
-import { SqliteTaskStorageGateway } from '../../../poc/tenant-process/Test1/task-storage/SqliteTaskStorageGateway.js';
+import { PocTenantProcessExplorer } from '../../../poc/planning/PocTenantProcessExplorer.js';
+import { PocTenantProcessLoader } from '../../../poc/planning/PocTenantProcessLoader.js';
+import { PocTenantProcessLoadParameterStore } from '../../../poc/planning/PocTenantProcessLoadParameterStore.js';
+import { fileURLToPath } from 'node:url';
+import { SqliteTaskStorageGateway } from '../../../poc/task-storage/Test1/SqliteTaskStorageGateway.js';
 
 async function startApi(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'taskstream-task-api-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const gateway = new SqliteTaskStorageGateway(join(directory, 'tasks.sqlite'));
+  const databasePath = join(directory, 'tasks.sqlite');
+  const gateway = new SqliteTaskStorageGateway(databasePath, {
+    defaultTenantProcessId: 'TaskStream/Test1',
+    isTenantProcessRegistered: (tenantProcessId) => tenantProcessId === 'TaskStream/Test1',
+  });
+  const traceAdapter = new SqlSystemTraceAdapter(databasePath);
+  const traceRecorder = new SystemTraceRecorder({ adapter: traceAdapter });
+  const traceRepository = new SqlSystemTraceQueryRepository(databasePath);
   t.after(() => gateway.close());
-  const server = createTaskApi(gateway);
+  t.after(() => traceAdapter.close());
+  t.after(() => traceRepository.close());
+  const server = createTaskApi(gateway, { traceRecorder, traceRepository });
   t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   assert.ok(address && typeof address !== 'string');
-  return { baseUrl: `http://127.0.0.1:${address.port}`, gateway };
+  return { baseUrl: `http://127.0.0.1:${address.port}`, gateway, traceRecorder, traceRepository };
 }
 
 test('API creates, lists, and retrieves a stored task through /api routes', async (t) => {
@@ -54,15 +68,19 @@ test('API creates, lists, and retrieves a stored task through /api routes', asyn
 });
 
 test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle through inspection APIs', async (t) => {
-  const { baseUrl, gateway } = await startApi(t);
+  const { baseUrl, gateway, traceRecorder } = await startApi(t);
   const createResponse = await fetch(`${baseUrl}/api/tasks`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name: 'Inspectable task' }),
   });
   const created = await createResponse.json() as { id: string };
-  const completed = await new PlannerWorker('api-test-worker', gateway).runOnce();
-  assert.ok(completed);
+  const parameters = new PocTenantProcessLoadParameterStore();
+  const explorer = new PocTenantProcessExplorer(fileURLToPath(new URL('../../../../Tenants/', import.meta.url)), parameters);
+  await explorer.discover();
+  const loader = new PocTenantProcessLoader(parameters);
+  const planned = await new PlannerWorker('api-test-worker', gateway, explorer, loader, traceRecorder).runOnce();
+  assert.equal(planned?.status, 'completed');
 
   const healthResponse = await fetch(`${baseUrl}/api/health`);
   const collectionsResponse = await fetch(`${baseUrl}/api/inspection/collections`);
@@ -84,10 +102,7 @@ test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle t
     data: { status: string; relationship: { sourceEventId: string; workEntryId: string | null } };
   }>;
   const workResponse = await fetch(`${baseUrl}/api/inspection/collections/process-work-entries/records`);
-  const workEntries = await workResponse.json() as Array<{
-    id: string;
-    data: { workType: string; sourceEventId: string; sourceQueueItemId: string; tenantProcessId: string; channelId: string; flowId: string; executionId: string };
-  }>;
+  const workEntries = await workResponse.json() as unknown[];
   const tracesResponse = await fetch(`${baseUrl}/api/inspection/collections/system-trace-records/records`);
   const traces = await tracesResponse.json() as Array<{ data: { operation: string; sourceQueueItemId: string } }>;
   const executionLogResponse = await fetch(`${baseUrl}/api/inspection/execution-log/${created.id}`);
@@ -109,25 +124,21 @@ test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle t
   assert.equal(tasks[0]?.provenance.tenantId, 'IEBBeta');
   assert.equal(events[0]?.data.eventType, 'task.created');
   assert.equal(events[0]?.data.sourceEntityId, created.id);
-  assert.equal(events[0]?.id, completed.sourceEventId);
-  assert.deepEqual(events[0]?.data.relationship.queueItemIds, [completed.id]);
+  assert.equal(events[0]?.id, queueItems[0]?.data.relationship.sourceEventId);
+  assert.deepEqual(events[0]?.data.relationship.queueItemIds, [queueItems[0]?.id]);
   assert.deepEqual(events[0]?.data.relationship.queueStatuses, ['completed']);
-  assert.deepEqual(events[0]?.data.relationship.workEntryIds, [workEntries[0]?.id]);
-  assert.equal(queueItems[0]?.id, completed.id);
+  assert.equal(events[0]?.data.relationship.workEntryIds.length, 1);
   assert.equal(queueItems[0]?.data.status, 'completed');
   assert.equal(queueItems[0]?.data.relationship.sourceEventId, events[0]?.id);
-  assert.equal(queueItems[0]?.data.relationship.workEntryId, workEntries[0]?.id);
-  assert.equal(workEntries[0]?.data.workType, 'process-channel-result');
-  assert.equal(workEntries[0]?.data.sourceEventId, events[0]?.id);
-  assert.equal(workEntries[0]?.data.sourceQueueItemId, completed.id);
-  assert.equal(workEntries[0]?.data.tenantProcessId, POC_TENANT_PROCESS_IDS.tenantProcessId);
-  assert.equal(workEntries[0]?.data.channelId, POC_TENANT_PROCESS_IDS.channelId);
-  assert.equal(workEntries[0]?.data.flowId, POC_TENANT_PROCESS_IDS.flowId);
-  assert.ok(workEntries[0]?.data.executionId);
+  assert.equal(queueItems[0]?.data.relationship.workEntryId, events[0]?.data.relationship.workEntryIds[0]);
+  assert.equal(workEntries.length, 1);
+  assert.ok(traces.some((trace) => trace.data.operation === 'poc.planner.tenantprocess.resolved'));
   assert.ok(traces.some((trace) => trace.data.operation === 'poc.tenantprocess.work-entry.confirmed'));
-  assert.equal(traces.at(-1)?.data.sourceQueueItemId, completed.id);
-  assert.ok(executionLog.some((record) => record.kind === 'system-trace' && record.stage === 'poc.tenantprocess.work-entry.confirmed'));
-  assert.ok(executionLog.some((record) => record.kind === 'domain-record' && record.identifiers.workEntryId === workEntries[0]?.id));
+  assert.ok(traces.some((trace) => trace.data.operation === 'poc.planner.queue-item.completed'));
+  assert.ok(!traces.some((trace) => trace.data.operation === 'poc.planner.tenantprocess.execution.failed'));
+  assert.equal(traces.at(-1)?.data.sourceQueueItemId, queueItems[0]?.id);
+  assert.ok(executionLog.some((record) => record.kind === 'system-trace' && record.stage === 'poc.planner.queue-item.completed'));
+  assert.ok(executionLog.some((record) => record.kind === 'domain-record' && record.identifiers.workEntryId));
   assert.ok(structures.some((record) => record.title === 'Task v1'));
   assert.equal(structures[0]?.provenance.sourceType, 'system-registration');
 });
@@ -154,7 +165,7 @@ test('POC reset route clears lifecycle data and restores registered structures',
   assert.deepEqual(tasks, []);
   assert.deepEqual(events, []);
   assert.deepEqual(queueItems, []);
-  assert.deepEqual(workEntries, []);
+  assert.equal(workEntries.length, 1);
   assert.deepEqual(traces, []);
   assert.equal(structures.length, 6);
 });

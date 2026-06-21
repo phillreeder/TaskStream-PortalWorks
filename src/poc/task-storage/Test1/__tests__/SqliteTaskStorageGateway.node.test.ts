@@ -3,13 +3,15 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { POC_TENANT_PROCESS_IDS } from '../../../../../../poc/tenant-process/PocTenantProcess.js';
 import { SqliteTaskStorageGateway } from '../SqliteTaskStorageGateway.js';
 
 function createGateway(t: TestContext): SqliteTaskStorageGateway {
   const directory = mkdtempSync(join(tmpdir(), 'taskstream-task-gateway-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const gateway = new SqliteTaskStorageGateway(join(directory, 'tasks.sqlite'));
+  const gateway = new SqliteTaskStorageGateway(join(directory, 'tasks.sqlite'), {
+    defaultTenantProcessId: 'TaskStream/Test1',
+    isTenantProcessRegistered: (tenantProcessId) => tenantProcessId === 'TaskStream/Test1',
+  });
   t.after(() => gateway.close());
   return gateway;
 }
@@ -19,7 +21,7 @@ test('[tickets: POC-EVENT-WORKER-001] stores tasks and exposes platform POC enti
 
   const created = await gateway.createTask({ data: { name: 'First task' } });
   const listed = await gateway.listTasks();
-  const filtered = await gateway.listTasks({ tenantId: 'IEBBeta', tenantProcessId: 'Test1' });
+  const filtered = await gateway.listTasks({ tenantId: 'IEBBeta', tenantProcessId: 'TaskStream/Test1' });
   const filteredOut = await gateway.listTasks({ tenantId: 'OtherTenant' });
   const stored = await gateway.getTask(created.id);
   const structures = await gateway.listEntityStructureVersions();
@@ -33,7 +35,7 @@ test('[tickets: POC-EVENT-WORKER-001] stores tasks and exposes platform POC enti
   assert.deepEqual(listed[0]?.data, { name: 'First task' });
   assert.deepEqual(stored?.data, { name: 'First task' });
   assert.equal(stored?.tenantId, 'IEBBeta');
-  assert.equal(stored?.tenantProcessId, 'Test1');
+  assert.equal(stored?.tenantProcessId, 'TaskStream/Test1');
   assert.equal(stored?.schemaVersion, 1);
   assert.equal(structure.entityType, 'Task');
   assert.equal(structure.version, 1);
@@ -65,6 +67,8 @@ test('[tickets: POC-EVENT-WORKER-001] routes supported Task Events to planner qu
   );
   assert.ok(queuedItems.every((item) => item.intentType === 'planner.process-channel'));
   assert.ok(queuedItems.every((item) => item.handlerKey === 'task-planning.process-channel'));
+  assert.ok(queuedItems.every((item) => item.tenantProcessId === 'TaskStream/Test1'));
+  assert.ok(events.every((event) => event.payload.tenantProcessId === 'TaskStream/Test1'));
 });
 
 test('[tickets: POC-EVENT-WORKER-001] leaves unsupported Events without queue work', async (t) => {
@@ -127,9 +131,9 @@ test('[tickets: POC-EVENT-WORKER-001] materializes one real work entry for a que
   const first = await gateway.createProcessWorkEntry({
     sourceEventId: claimed.sourceEventId,
     sourceQueueItemId: claimed.id,
-    tenantProcessId: POC_TENANT_PROCESS_IDS.tenantProcessId,
-    channelId: POC_TENANT_PROCESS_IDS.channelId,
-    flowId: POC_TENANT_PROCESS_IDS.flowId,
+    tenantProcessId: 'TaskStream/Test1',
+    channelId: 'processWork',
+    flowId: 'prepareWork',
     executionId: 'execution-1',
     workType: 'process-channel-result',
     status: 'materialized',
@@ -138,9 +142,9 @@ test('[tickets: POC-EVENT-WORKER-001] materializes one real work entry for a que
   const second = await gateway.createProcessWorkEntry({
     sourceEventId: claimed.sourceEventId,
     sourceQueueItemId: claimed.id,
-    tenantProcessId: POC_TENANT_PROCESS_IDS.tenantProcessId,
-    channelId: POC_TENANT_PROCESS_IDS.channelId,
-    flowId: POC_TENANT_PROCESS_IDS.flowId,
+    tenantProcessId: 'TaskStream/Test1',
+    channelId: 'processWork',
+    flowId: 'prepareWork',
     executionId: 'execution-2',
     workType: 'process-channel-result',
     status: 'materialized',
@@ -152,9 +156,9 @@ test('[tickets: POC-EVENT-WORKER-001] materializes one real work entry for a que
   assert.equal(workEntries.length, 1);
   assert.equal(workEntries[0]?.sourceEventId, claimed.sourceEventId);
   assert.equal(workEntries[0]?.sourceQueueItemId, claimed.id);
-  assert.equal(workEntries[0]?.tenantProcessId, POC_TENANT_PROCESS_IDS.tenantProcessId);
-  assert.equal(workEntries[0]?.channelId, POC_TENANT_PROCESS_IDS.channelId);
-  assert.equal(workEntries[0]?.flowId, POC_TENANT_PROCESS_IDS.flowId);
+  assert.equal(workEntries[0]?.tenantProcessId, 'TaskStream/Test1');
+  assert.equal(workEntries[0]?.channelId, 'processWork');
+  assert.equal(workEntries[0]?.flowId, 'prepareWork');
   assert.equal(workEntries[0]?.executionId, 'execution-1');
   assert.equal(workEntries[0]?.workType, 'process-channel-result');
 });
@@ -169,15 +173,14 @@ test('[tickets: POC-EVENT-WORKER-001] reset clears all lifecycle rows and restor
   await gateway.createProcessWorkEntry({
     sourceEventId: claimed.sourceEventId,
     sourceQueueItemId: claimed.id,
-    tenantProcessId: POC_TENANT_PROCESS_IDS.tenantProcessId,
-    channelId: POC_TENANT_PROCESS_IDS.channelId,
-    flowId: POC_TENANT_PROCESS_IDS.flowId,
+    tenantProcessId: 'TaskStream/Test1',
+    channelId: 'processWork',
+    flowId: 'prepareWork',
     executionId: 'reset-execution',
     workType: 'process-channel-result',
     status: 'materialized',
     payload: {},
   });
-  assert.ok((await gateway.listSystemTraceRecords()).length > 0);
 
   await gateway.resetDatabase();
 
@@ -186,6 +189,22 @@ test('[tickets: POC-EVENT-WORKER-001] reset clears all lifecycle rows and restor
   assert.deepEqual(await gateway.listEvents(), []);
   assert.deepEqual(await gateway.listPersistentQueueItems(), []);
   assert.deepEqual(await gateway.listProcessWorkEntries(), []);
-  assert.deepEqual(await gateway.listSystemTraceRecords(), []);
   assert.equal((await gateway.listEntityStructureVersions()).length, 6);
+});
+
+test('[tickets: POC-TENANTPROCESS-REGISTRATION-GATE-001] rejects task creation when configured TenantProcess was not registered', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'taskstream-task-gateway-unregistered-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const gateway = new SqliteTaskStorageGateway(join(directory, 'tasks.sqlite'), {
+    defaultTenantProcessId: 'tenant-process.unregistered',
+    isTenantProcessRegistered: () => false,
+  });
+  t.after(() => gateway.close());
+
+  await assert.rejects(
+    () => gateway.createTask({ data: { name: 'Must not exist' } }),
+    /Cannot create Task for unregistered TenantProcess/u,
+  );
+  assert.deepEqual(await gateway.listTasks(), []);
+  assert.deepEqual(await gateway.listPersistentQueueItems(), []);
 });
