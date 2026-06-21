@@ -1,17 +1,10 @@
-import {
-  prepareWorkInputContract,
-  workInspectedResultContract,
-  workPreparedResultContract,
-} from './contracts.js';
-import { inspectWorkFlow, prepareWorkFlow } from './flows.js';
-
 export const prepareWorkSto = {
-  flow: prepareWorkFlow,
-  inputContracts: [prepareWorkInputContract],
-  resultContracts: [workPreparedResultContract],
-};
+  flow: 'prepareWork',
+  inputContracts: ['prepareWork'],
+  resultContracts: ['workPrepared'],
+} as const;
 
 export const inspectWorkSto = {
-  flow: inspectWorkFlow,
-  resultContracts: [workInspectedResultContract],
-};
+  flow: 'inspectWork',
+  resultContracts: ['workInspected'],
+} as const;

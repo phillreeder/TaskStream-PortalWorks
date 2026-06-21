@@ -3,7 +3,7 @@ import {
   RUNTIME_SPINE_TENANT_PROCESS_IDS,
   runtimeSpineTenantProcess,
 } from '../../../../Tenants/TaskStream/TenantProcess/runtime-spine-001/index.js';
-import { iebBetaTest1TenantProcess } from '../../../../Tenants/TaskStream/TenantProcess/Test1/index.js';
+import { tenantProcess as iebBetaTest1TenantProcess } from '../../../../Tenants/TaskStream/TenantProcess/Test1/index.js';
 import { TenantProcessValidationError } from '../errors.js';
 import { registerTenantProcess } from '../registerTenantProcess.js';
 import { validateTenantProcessDefinition } from '../validateTenantProcess.js';

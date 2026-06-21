@@ -1,7 +1,6 @@
-import { flow } from '@TaskStream/App/domain/tenantProcess/index.js';
+import type { FlowExecutable } from '@TaskStream/App/domain/tenantProcess/index.js';
 
-export const prepareWorkFlow = flow((ctx, input) => {
-  
+export const prepareWorkFlow = ((ctx, input) => {
   const hasSourceReferences = ctx.probe('has-source-references', () =>
     typeof input.sourceEventId === 'string'
     && input.sourceEventId.length > 0
@@ -31,9 +30,9 @@ export const prepareWorkFlow = flow((ctx, input) => {
   });
 
   return ctx.success();
-});
+}) satisfies FlowExecutable;
 
-export const inspectWorkFlow = flow((ctx) => {
+export const inspectWorkFlow = ((ctx) => {
   const hasPreparedWork = ctx.probe(
     'has-prepared-work',
     () => ctx.state.get({ path: ['status'] }) === 'prepared',
@@ -47,4 +46,4 @@ export const inspectWorkFlow = flow((ctx) => {
   }
 
   return ctx.success();
-});
+}) satisfies FlowExecutable;

@@ -7,7 +7,7 @@ export const prepareWorkInputContract = {
     sourceEventId: { type: 'string' },
     sourceQueueItemId: { type: 'string' },
   },
-};
+} as const;
 
 export const workPreparedResultContract = {
   fields: {
@@ -20,7 +20,7 @@ export const workPreparedResultContract = {
     workEntryId: { type: 'string' },
     lastError: { type: 'string' },
   },
-};
+} as const;
 
 export const workInspectedResultContract = {
   fields: {
@@ -33,4 +33,4 @@ export const workInspectedResultContract = {
     workEntryId: { type: 'string' },
     lastError: { type: 'string' },
   },
-};
+} as const;

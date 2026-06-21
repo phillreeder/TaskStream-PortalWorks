@@ -1,12 +1,4 @@
-import { defineState } from '@TaskStream/App/definitionRuntime/state/defineState.js';
-
-export const test1ProcessWorkStateDefinition = defineState<{
-  status: 'pending' | 'prepared' | 'materialized' | 'failed';
-  sourceEventId: string;
-  sourceQueueItemId: string;
-  workEntryId: string;
-  lastError: string;
-}>()({
+export const test1ProcessWorkStateDefinition = {
   id: 'processWork',
   version: 1,
   strict: true,
@@ -29,4 +21,4 @@ export const test1ProcessWorkStateDefinition = defineState<{
     workEntryId: { type: 'string' },
     lastError: { type: 'string' },
   },
-});
+} as const;

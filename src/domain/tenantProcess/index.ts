@@ -11,7 +11,6 @@ export type {
   ChannelRef,
   ChannelStateReader,
   ChannelSTOSelection,
-  ChannelSTOSelectionInput,
   CredentialContract,
   CredentialContractRef,
   CredentialKind,
@@ -82,3 +81,14 @@ export {
   validateTenantProcessRuntimeBinding,
 } from './validateTenantProcess.js';
 export type { TenantProcessValidationErrorCode } from './errors.js';
+
+export { TenantProcess, TENANT_PROCESS_DECLARATION_ORDER } from './TenantProcess.js';
+export type {
+  TenantProcessComposer,
+  TenantProcessCompositionContext,
+  TenantProcessDeclarationKind,
+  TenantProcessIdentity,
+  TenantProcessSourceDefinition,
+  TenantProcessStoSource,
+  TenantProcessTaskSource,
+} from './TenantProcess.js';
