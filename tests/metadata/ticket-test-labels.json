@@ -725,7 +725,7 @@
       }
     },
     {
-      "file": "src/poc/planning/__tests__/PlannerWorker.node.test.ts",
+      "file": "src/application/planners/__tests__/PlannerWorker.node.test.ts",
       "labels": {
         "verificationSet": "poc-event-worker-v1",
         "tickets": [
@@ -758,7 +758,7 @@
       }
     },
     {
-      "file": "src/poc/planning/__tests__/PlannerWorker.node.test.ts",
+      "file": "src/application/planners/__tests__/PlannerWorker.node.test.ts",
       "labels": {
         "verificationSet": "poc-tenant-work-log-v1",
         "tickets": [
@@ -879,7 +879,7 @@
       }
     },
     {
-      "file": "src/poc/planning/__tests__/PlannerWorker.node.test.ts",
+      "file": "src/application/planners/__tests__/PlannerWorker.node.test.ts",
       "labels": {
         "verificationSet": "systemtrace-sql-runtime-scaffold-v1",
         "tickets": [
@@ -920,7 +920,7 @@
       }
     },
     {
-      "file": "src/poc/planning/__tests__/PocTenantProcessLoader.node.test.ts",
+      "file": "src/infrastructure/tenant-process/__tests__/TenantProcessLoader.node.test.ts",
       "labels": {
         "verificationSet": "poc-tenantprocess-lazy-load-v1",
         "tickets": [
@@ -937,7 +937,7 @@
       }
     },
     {
-      "file": "src/poc/planning/__tests__/PlannerWorker.node.test.ts",
+      "file": "src/application/planners/__tests__/PlannerWorker.node.test.ts",
       "testName": "[tickets: POC-TENANTPROCESS-LAZY-LOAD-001] PlannerWorker resolves real TenantProcess then fails before execution",
       "labels": {
         "verificationSet": "poc-tenantprocess-lazy-load-v1",
@@ -952,7 +952,7 @@
           "REQ-POC-TNP-QUEUE-001"
         ],
         "ownerType": "applicationPath",
-        "owner": "TaskStream/src/poc/planning",
+        "owner": "TaskStream/src/application/planners",
         "testConcern": "execution-unavailable-queue-failure-zero-work",
         "runtimeSlice": "poc-tenantprocess-load-fail"
       }

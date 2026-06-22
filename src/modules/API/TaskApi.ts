@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { routeTaskStorageRequest, type TaskStorageRouteOptions } from '../task-storage/routes.js';
-import type { TaskStorageGateway } from '../../poc/task-storage/Test1/TaskStorageGateway.js';
+import type { TaskStorageGateway } from '../../application/task-storage/TaskStorageGateway.js';
 
 export type TaskApiOptions = TaskStorageRouteOptions;
 

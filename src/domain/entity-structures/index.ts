@@ -1,4 +1,4 @@
-export type PocEntityStructure = {
+export type EntityStructure = {
   readonly entityType: string;
   readonly version: number;
   readonly structure: Record<string, unknown>;
@@ -14,7 +14,7 @@ export const TASK_STRUCTURE = {
       name: { type: 'string', minLength: 1 },
     },
   },
-} as const satisfies PocEntityStructure;
+} as const satisfies EntityStructure;
 
 export const TASK_EVENT_STRUCTURE = {
   entityType: 'Event',
@@ -32,7 +32,7 @@ export const TASK_EVENT_STRUCTURE = {
       occurredAt: { type: 'string' },
     },
   },
-} as const satisfies PocEntityStructure;
+} as const satisfies EntityStructure;
 
 export const EVENT_REACTION_STRUCTURE = {
   entityType: 'EventReaction',
@@ -49,7 +49,7 @@ export const EVENT_REACTION_STRUCTURE = {
       createdAt: { type: 'string' },
     },
   },
-} as const satisfies PocEntityStructure;
+} as const satisfies EntityStructure;
 
 export const PLANNER_QUEUE_ITEM_STRUCTURE = {
   entityType: 'PersistentQueueItem',
@@ -74,7 +74,7 @@ export const PLANNER_QUEUE_ITEM_STRUCTURE = {
       createdAt: { type: 'string' },
     },
   },
-} as const satisfies PocEntityStructure;
+} as const satisfies EntityStructure;
 
 export const PROCESS_WORK_ENTRY_STRUCTURE = {
   entityType: 'ProcessWorkEntry',
@@ -92,7 +92,7 @@ export const PROCESS_WORK_ENTRY_STRUCTURE = {
       createdAt: { type: 'string' },
     },
   },
-} as const satisfies PocEntityStructure;
+} as const satisfies EntityStructure;
 
 export const ENTITY_STRUCTURE_VERSION_STRUCTURE = {
   entityType: 'EntityStructureVersion',
@@ -106,9 +106,9 @@ export const ENTITY_STRUCTURE_VERSION_STRUCTURE = {
       structure: { type: 'object' },
     },
   },
-} as const satisfies PocEntityStructure;
+} as const satisfies EntityStructure;
 
-export const POC_ENTITY_STRUCTURES = [
+export const ENTITY_STRUCTURES = [
   TASK_STRUCTURE,
   TASK_EVENT_STRUCTURE,
   EVENT_REACTION_STRUCTURE,

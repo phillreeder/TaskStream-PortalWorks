@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { TaskStorageGateway } from '../../poc/task-storage/Test1/TaskStorageGateway.js';
+import type { TaskStorageGateway } from '../../application/task-storage/TaskStorageGateway.js';
 import type { SystemTraceRecorder } from '../SystemTrace/index.js';
 import type { SqlSystemTraceQueryRepository } from '../SystemTrace/sqlTracePersistence.js';
 import {

@@ -4,7 +4,7 @@ export const TASK_PLANNING_HANDLER_KEY = 'task-planning.process-channel' as cons
 
 export type SupportedTaskEventType = 'task.created' | 'task.updated';
 
-export type PocEventReaction = {
+export type EventReaction = {
   readonly id: string;
   readonly eventType: SupportedTaskEventType;
   readonly queueIntentType: typeof TASK_PLANNING_INTENT_TYPE;
@@ -13,7 +13,7 @@ export type PocEventReaction = {
   readonly createdAt: string;
 };
 
-export const POC_EVENT_REACTIONS = [
+export const EVENT_REACTIONS = [
   {
     id: 'reaction.task-created.process-channel',
     eventType: 'task.created',
@@ -30,8 +30,8 @@ export const POC_EVENT_REACTIONS = [
     workType: PROCESS_CHANNEL_RESULT_WORK_TYPE,
     createdAt: '2026-06-18T00:00:00.000Z',
   },
-] as const satisfies readonly PocEventReaction[];
+] as const satisfies readonly EventReaction[];
 
-export function resolvePocEventReaction(eventType: string): PocEventReaction | null {
-  return POC_EVENT_REACTIONS.find((reaction) => reaction.eventType === eventType) ?? null;
+export function resolveEventReaction(eventType: string): EventReaction | null {
+  return EVENT_REACTIONS.find((reaction) => reaction.eventType === eventType) ?? null;
 }

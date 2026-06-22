@@ -3,14 +3,13 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
-  POC_ENTITY_STRUCTURES,
+  ENTITY_STRUCTURES,
   TASK_EVENT_STRUCTURE as EVENT_STRUCTURE,
   TASK_STRUCTURE,
-} from '../../entity-structures/index.js';
-import { resolvePocEventReaction } from '../../events/EventReactionResolver.js';
-import type { TaskFilters, TaskStorageGateway } from './TaskStorageGateway.js';
+} from '../../domain/entity-structures/index.js';
+import { resolveEventReaction } from '../../application/events/EventReactionResolver.js';
+import type { TaskFilters, TaskStorageGateway } from '../../application/task-storage/TaskStorageGateway.js';
 import {
-  DEFAULT_TENANT_PROCESS_ID,
   TASK_ENTITY_TYPE,
   TASK_SCHEMA_VERSION,
   type CreateProcessWorkEntryInput,
@@ -22,7 +21,7 @@ import {
   type StoredEvent,
   type StoredTask,
   type TaskUpdateSignal,
-} from './types.js';
+} from '../../application/task-storage/types.js';
 
 type TaskRow = {
   id: string;
@@ -396,7 +395,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
         event.occurredAt,
       );
 
-    const reaction = resolvePocEventReaction(event.eventType);
+    const reaction = resolveEventReaction(event.eventType);
     if (reaction) {
       const queueItemId = randomUUID();
       this.database
@@ -524,7 +523,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     );
     if (!columns.has('tenant_process_id')) {
       this.database.exec(
-        `ALTER TABLE persistent_queue_items ADD COLUMN tenant_process_id TEXT NOT NULL DEFAULT '${DEFAULT_TENANT_PROCESS_ID}';`,
+        `ALTER TABLE persistent_queue_items ADD COLUMN tenant_process_id TEXT NOT NULL DEFAULT '${this.escapeSqlLiteral(this.options.defaultTenantProcessId)}';`,
       );
     }
   }
@@ -534,7 +533,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
       (this.database.prepare(`PRAGMA table_info(process_work_entries)`).all() as Array<{ name: string }>).map((column) => column.name),
     );
     const required = [
-      ['tenant_process_id', `'${DEFAULT_TENANT_PROCESS_ID}'`],
+      ['tenant_process_id', `'${this.escapeSqlLiteral(this.options.defaultTenantProcessId)}'`],
       ['channel_id', "'unknown-channel'"],
       ['flow_id', "'unknown-flow'"],
       ['execution_id', "'unknown-execution'"],
@@ -546,12 +545,16 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     }
   }
 
+  private escapeSqlLiteral(value: string): string {
+    return value.replaceAll("'", "''");
+  }
+
   private registerEntityStructures(): void {
     const createdAt = new Date().toISOString();
     const statement = this.database.prepare(
       `INSERT OR IGNORE INTO entity_structure_versions (entity_type,version,structure_json,created_at) VALUES (?,?,?,?)`,
     );
-    for (const definition of POC_ENTITY_STRUCTURES) {
+    for (const definition of ENTITY_STRUCTURES) {
       statement.run(definition.entityType, definition.version, JSON.stringify(definition.structure), createdAt);
     }
   }

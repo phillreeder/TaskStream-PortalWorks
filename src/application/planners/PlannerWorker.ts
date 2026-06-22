@@ -1,28 +1,28 @@
 import { randomUUID } from 'node:crypto';
-import { TASK_PLANNING_HANDLER_KEY, resolvePocEventReaction } from '../events/EventReactionResolver.js';
+import { TASK_PLANNING_HANDLER_KEY, resolveEventReaction } from '../events/EventReactionResolver.js';
 import { SystemTraceRecorder, type SystemTraceAdapter } from '../../modules/SystemTrace/index.js';
 import {
-  PocTenantProcessLoadError,
-  PocTenantProcessLoader,
-  type PocTenantProcessResolution,
-} from './PocTenantProcessLoader.js';
-import { PocTenantProcessExplorer } from './PocTenantProcessExplorer.js';
+  TenantProcessLoadError,
+  TenantProcessLoader,
+  type TenantProcessResolution,
+} from '../../infrastructure/tenant-process/TenantProcessLoader.js';
+import { TenantProcessExplorer } from '../../infrastructure/tenant-process/TenantProcessExplorer.js';
 import type {
   PersistentQueueItem,
   StoredEvent,
   TaskStorageGateway,
-} from '../task-storage/Test1/index.js';
+} from '../task-storage/index.js';
 
 export class PlannerWorker {
-  private readonly tenantProcessExplorer: PocTenantProcessExplorer;
-  private readonly tenantProcessLoader: PocTenantProcessLoader;
+  private readonly tenantProcessExplorer: TenantProcessExplorer;
+  private readonly tenantProcessLoader: TenantProcessLoader;
   private readonly traceRecorder: SystemTraceRecorder;
 
   public constructor(
     private readonly workerId: string,
     private readonly gateway: TaskStorageGateway,
-    tenantProcessExplorer: PocTenantProcessExplorer,
-    tenantProcessLoader: PocTenantProcessLoader,
+    tenantProcessExplorer: TenantProcessExplorer,
+    tenantProcessLoader: TenantProcessLoader,
     traceRecorder?: SystemTraceRecorder,
   ) {
     this.traceRecorder = traceRecorder ?? new SystemTraceRecorder({ adapter: new NoopSystemTraceAdapter() });
@@ -140,8 +140,8 @@ export class PlannerWorker {
     return event;
   }
 
-  private validateHandler(event: StoredEvent, item: PersistentQueueItem): NonNullable<ReturnType<typeof resolvePocEventReaction>> {
-    const reaction = resolvePocEventReaction(event.eventType);
+  private validateHandler(event: StoredEvent, item: PersistentQueueItem): NonNullable<ReturnType<typeof resolveEventReaction>> {
+    const reaction = resolveEventReaction(event.eventType);
     if (!reaction || reaction.id !== item.eventReactionId || reaction.handlerKey !== item.handlerKey) {
       throw new Error(`No matching event reaction handler for queue item: ${item.id}`);
     }
@@ -156,7 +156,7 @@ export class PlannerWorker {
     event: StoredEvent,
     item: PersistentQueueItem,
     correlationId: string,
-    reaction: NonNullable<ReturnType<typeof resolvePocEventReaction>>,
+    reaction: NonNullable<ReturnType<typeof resolveEventReaction>>,
   ): Record<string, string> {
     return {
       correlationId,
@@ -174,7 +174,7 @@ export class PlannerWorker {
 
   private resolvedTraceContext(
     context: Record<string, string>,
-    resolution: PocTenantProcessResolution,
+    resolution: TenantProcessResolution,
   ): Record<string, string> {
     return {
       ...context,
@@ -185,7 +185,7 @@ export class PlannerWorker {
   }
 
   private resolveDispatch(
-    resolution: PocTenantProcessResolution,
+    resolution: TenantProcessResolution,
     event: StoredEvent,
     item: PersistentQueueItem,
   ): {
@@ -274,7 +274,7 @@ export class PlannerWorker {
     operation: string;
     message: string;
   } {
-    if (error instanceof PocTenantProcessLoadError) {
+    if (error instanceof TenantProcessLoadError) {
       return {
         code: error.code,
         stage: 'tenantprocess-load',

@@ -1,9 +1,7 @@
-import { TASK_STRUCTURE } from '../../entity-structures/index.js';
+import { TASK_STRUCTURE } from '../../domain/entity-structures/index.js';
 
 export const TASK_ENTITY_TYPE = TASK_STRUCTURE.entityType;
 export const TASK_SCHEMA_VERSION = TASK_STRUCTURE.version;
-
-export const DEFAULT_TENANT_PROCESS_ID = 'TaskStream/Test1' as const;
 
 export type TaskData = { name: string };
 export type CreateTaskInput = { data: TaskData };

@@ -2,16 +2,16 @@ import { resolve } from 'node:path';
 import { createTaskApi } from '../modules/API/TaskApi.js';
 import { SystemTraceRecorder } from '../modules/SystemTrace/index.js';
 import { SqlSystemTraceAdapter, SqlSystemTraceQueryRepository } from '../modules/SystemTrace/sqlTracePersistence.js';
-import { PlannerWorker } from './planning/PlannerWorker.js';
-import { PocTenantProcessExplorer } from './planning/PocTenantProcessExplorer.js';
-import { PocTenantProcessLoader } from './planning/PocTenantProcessLoader.js';
-import { PocTenantProcessLoadParameterStore } from './planning/PocTenantProcessLoadParameterStore.js';
-import { SqliteTaskStorageGateway } from './task-storage/Test1/SqliteTaskStorageGateway.js';
-import { DEFAULT_TENANT_PROCESS_ID } from './task-storage/Test1/types.js';
+import { PlannerWorker } from '../application/planners/PlannerWorker.js';
+import { TenantProcessExplorer } from '../infrastructure/tenant-process/TenantProcessExplorer.js';
+import { TenantProcessLoader } from '../infrastructure/tenant-process/TenantProcessLoader.js';
+import { TenantProcessLoadParameterStore } from '../infrastructure/tenant-process/TenantProcessLoadParameterStore.js';
+import { SqliteTaskStorageGateway } from '../infrastructure/task-storage/SqliteTaskStorageGateway.js';
+const DEFAULT_TENANT_PROCESS_ID = 'TaskStream/Test1' as const;
 
 const databasePath = resolve('temp-infra/storage/IEBBeta/Test1/task-storage.sqlite');
-const tenantProcessParameters = new PocTenantProcessLoadParameterStore();
-const tenantProcessExplorer = new PocTenantProcessExplorer(resolve('Tenants'), tenantProcessParameters);
+const tenantProcessParameters = new TenantProcessLoadParameterStore();
+const tenantProcessExplorer = new TenantProcessExplorer(resolve('Tenants'), tenantProcessParameters);
 const discoveries = await tenantProcessExplorer.discover();
 if (!tenantProcessParameters.get(DEFAULT_TENANT_PROCESS_ID)) {
   throw new Error(`Default TenantProcess ${DEFAULT_TENANT_PROCESS_ID} was not validated during startup discovery.`);
@@ -23,7 +23,7 @@ const gateway = new SqliteTaskStorageGateway(databasePath, {
 const traceAdapter = new SqlSystemTraceAdapter(databasePath);
 const traceRecorder = new SystemTraceRecorder({ adapter: traceAdapter });
 const traceRepository = new SqlSystemTraceQueryRepository(databasePath);
-const tenantProcessLoader = new PocTenantProcessLoader(tenantProcessParameters);
+const tenantProcessLoader = new TenantProcessLoader(tenantProcessParameters);
 const worker = new PlannerWorker(
   'poc-planner-worker-1',
   gateway,

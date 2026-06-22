@@ -2,7 +2,7 @@ import {
   validateTenantProcessDefinition,
   type TenantProcessDefinition,
 } from '../../domain/tenantProcess/index.js';
-import { PocTenantProcessLoadParameterStore } from './PocTenantProcessLoadParameterStore.js';
+import { TenantProcessLoadParameterStore } from './TenantProcessLoadParameterStore.js';
 
 export type TenantProcessCompositeId = {
   readonly tenant: string;
@@ -17,22 +17,22 @@ export type DiscoverableTenantProcess = TenantProcessDefinition & {
   readonly id: TenantProcessCompositeId;
 };
 
-export type PocTenantProcessLoaderInput = {
+export type TenantProcessLoaderInput = {
   readonly tenantProcessId: string;
 };
 
-export type PocTenantProcessResolution = {
+export type TenantProcessResolution = {
   readonly tenantProcess: DiscoverableTenantProcess;
   readonly requestedTenantProcessId: string;
   readonly resolvedTenantProcessId: string;
   readonly loaderKey: string;
 };
 
-export type PocTenantProcessModule = Record<string, unknown> & {
+export type TenantProcessModule = Record<string, unknown> & {
   readonly tenantProcess?: unknown;
 };
 
-export class PocTenantProcessLoadError extends Error {
+export class TenantProcessLoadError extends Error {
   public constructor(
     public readonly code:
       | 'POC_TENANT_PROCESS_PARAMETERS_NOT_REGISTERED'
@@ -49,28 +49,28 @@ export class PocTenantProcessLoadError extends Error {
     options?: ErrorOptions,
   ) {
     super(message, options);
-    this.name = 'PocTenantProcessLoadError';
+    this.name = 'TenantProcessLoadError';
   }
 }
 
-export class PocTenantProcessLoader {
-  public constructor(private readonly parameterStore: PocTenantProcessLoadParameterStore) {}
+export class TenantProcessLoader {
+  public constructor(private readonly parameterStore: TenantProcessLoadParameterStore) {}
 
-  public async load(input: PocTenantProcessLoaderInput): Promise<PocTenantProcessResolution> {
+  public async load(input: TenantProcessLoaderInput): Promise<TenantProcessResolution> {
     const parameters = this.parameterStore.get(input.tenantProcessId);
     if (!parameters) {
-      throw new PocTenantProcessLoadError(
+      throw new TenantProcessLoadError(
         'POC_TENANT_PROCESS_PARAMETERS_NOT_REGISTERED',
         `No discovered TenantProcess loading parameters are registered for ${input.tenantProcessId}.`,
         { requestedTenantProcessId: input.tenantProcessId },
       );
     }
 
-    let moduleNamespace: PocTenantProcessModule;
+    let moduleNamespace: TenantProcessModule;
     try {
-      moduleNamespace = (await import(parameters.entryModuleUrl)) as PocTenantProcessModule;
+      moduleNamespace = (await import(parameters.entryModuleUrl)) as TenantProcessModule;
     } catch (error) {
-      throw new PocTenantProcessLoadError(
+      throw new TenantProcessLoadError(
         'POC_TENANT_PROCESS_MODULE_IMPORT_FAILED',
         `TenantProcess module import failed for ${input.tenantProcessId}.`,
         {
@@ -86,7 +86,7 @@ export class PocTenantProcessLoader {
     try {
       validateTenantProcessDefinition(tenantProcess);
     } catch (error) {
-      throw new PocTenantProcessLoadError(
+      throw new TenantProcessLoadError(
         'POC_TENANT_PROCESS_VALIDATION_FAILED',
         `TenantProcess export failed validation for ${input.tenantProcessId}.`,
         { requestedTenantProcessId: input.tenantProcessId, loaderKey: parameters.loaderKey },
@@ -96,7 +96,7 @@ export class PocTenantProcessLoader {
 
     const resolvedTenantProcessId = tenantProcessCompositeKey(tenantProcess.id);
     if (resolvedTenantProcessId !== input.tenantProcessId) {
-      throw new PocTenantProcessLoadError(
+      throw new TenantProcessLoadError(
         'POC_TENANT_PROCESS_IDENTITY_MISMATCH',
         `TenantProcess identity mismatch: requested ${input.tenantProcessId}, resolved ${resolvedTenantProcessId}.`,
         {
@@ -117,13 +117,13 @@ export class PocTenantProcessLoader {
 }
 
 export function selectTenantProcessExport(
-  moduleNamespace: PocTenantProcessModule,
+  moduleNamespace: TenantProcessModule,
   requestedTenantProcessId: string,
   loaderKey: string,
 ): DiscoverableTenantProcess {
   const selected = moduleNamespace.tenantProcess;
   if (selected === undefined) {
-    throw new PocTenantProcessLoadError(
+    throw new TenantProcessLoadError(
       'POC_TENANT_PROCESS_EXPORT_MISSING',
       `TenantProcess module must explicitly export tenantProcess for ${requestedTenantProcessId}.`,
       { requestedTenantProcessId, loaderKey },

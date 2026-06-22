@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 import test, { type TestContext } from 'node:test';
 import { SystemTraceRecorder } from '../../../modules/SystemTrace/index.js';
 import { SqlSystemTraceAdapter, SqlSystemTraceQueryRepository } from '../../../modules/SystemTrace/sqlTracePersistence.js';
-import { PocTenantProcessExplorer } from '../PocTenantProcessExplorer.js';
-import { PocTenantProcessLoader } from '../PocTenantProcessLoader.js';
-import { PocTenantProcessLoadParameterStore } from '../PocTenantProcessLoadParameterStore.js';
-import { SqliteTaskStorageGateway } from '../../task-storage/Test1/SqliteTaskStorageGateway.js';
+import { TenantProcessExplorer } from '../../../infrastructure/tenant-process/TenantProcessExplorer.js';
+import { TenantProcessLoader } from '../../../infrastructure/tenant-process/TenantProcessLoader.js';
+import { TenantProcessLoadParameterStore } from '../../../infrastructure/tenant-process/TenantProcessLoadParameterStore.js';
+import { SqliteTaskStorageGateway } from '../../../infrastructure/task-storage/SqliteTaskStorageGateway.js';
 import { PlannerWorker } from '../PlannerWorker.js';
 
 function createHarness(t: TestContext) {
@@ -32,10 +32,10 @@ function createHarness(t: TestContext) {
 test('[tickets: POC-TENANTPROCESS-EXECUTION-DISPATCH-001] PlannerWorker dispatches validated TenantProcess work and completes planning', async (t) => {
   const { gateway, traceRecorder, traceRepository } = createHarness(t);
   const created = await gateway.createTask({ data: { name: 'Dispatch governed work' } });
-  const parameters = new PocTenantProcessLoadParameterStore();
-  const explorer = new PocTenantProcessExplorer(fileURLToPath(new URL('../../../../Tenants/', import.meta.url)), parameters);
+  const parameters = new TenantProcessLoadParameterStore();
+  const explorer = new TenantProcessExplorer(fileURLToPath(new URL('../../../../Tenants/', import.meta.url)), parameters);
   await explorer.discover();
-  const loader = new PocTenantProcessLoader(parameters);
+  const loader = new TenantProcessLoader(parameters);
   const worker = new PlannerWorker('worker-1', gateway, explorer, loader, traceRecorder);
 
   const result = await worker.runOnce();

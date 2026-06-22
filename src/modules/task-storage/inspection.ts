@@ -1,4 +1,4 @@
-import type { TaskStorageGateway } from '../../poc/task-storage/Test1/TaskStorageGateway.js';
+import type { TaskStorageGateway } from '../../application/task-storage/TaskStorageGateway.js';
 import type { SqlSystemTraceQueryRepository, SqlSystemTraceRecord } from '../SystemTrace/sqlTracePersistence.js';
 import type {
   EntityStructureVersion,
@@ -7,7 +7,7 @@ import type {
   ProcessWorkEntry,
   StoredEvent,
   TaskUpdateSignal,
-} from '../../poc/task-storage/Test1/types.js';
+} from '../../application/task-storage/types.js';
 
 export type InspectionCollectionId =
   | 'tasks'

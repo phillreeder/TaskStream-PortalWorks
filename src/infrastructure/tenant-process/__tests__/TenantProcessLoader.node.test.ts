@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { PocTenantProcessExplorer } from '../PocTenantProcessExplorer.js';
-import { PocTenantProcessLoadError, PocTenantProcessLoader } from '../PocTenantProcessLoader.js';
-import { PocTenantProcessLoadParameterStore } from '../PocTenantProcessLoadParameterStore.js';
+import { TenantProcessExplorer } from '../TenantProcessExplorer.js';
+import { TenantProcessLoadError, TenantProcessLoader } from '../TenantProcessLoader.js';
+import { TenantProcessLoadParameterStore } from '../TenantProcessLoadParameterStore.js';
 
 const tenantsRoot = fileURLToPath(new URL('../../../../Tenants/', import.meta.url));
 
 test('[tickets: POC-TENANTPROCESS-LAZY-LOAD-001] explorer discovers and registers TenantProcess load parameters', async () => {
-  const store = new PocTenantProcessLoadParameterStore();
-  const explorer = new PocTenantProcessExplorer(tenantsRoot, store);
+  const store = new TenantProcessLoadParameterStore();
+  const explorer = new TenantProcessExplorer(tenantsRoot, store);
 
   const discoveries = await explorer.discover();
 
@@ -22,9 +22,9 @@ test('[tickets: POC-TENANTPROCESS-LAZY-LOAD-001] explorer discovers and register
 });
 
 test('[tickets: POC-TENANTPROCESS-LAZY-LOAD-001] direct loader resolves the real Test1 TenantProcess from discovered parameters', async () => {
-  const store = new PocTenantProcessLoadParameterStore();
-  const explorer = new PocTenantProcessExplorer(tenantsRoot, store);
-  const loader = new PocTenantProcessLoader(store);
+  const store = new TenantProcessLoadParameterStore();
+  const explorer = new TenantProcessExplorer(tenantsRoot, store);
+  const loader = new TenantProcessLoader(store);
   await explorer.discover();
 
   const resolution = await loader.load({ tenantProcessId: 'TaskStream/Test1' });
@@ -35,17 +35,17 @@ test('[tickets: POC-TENANTPROCESS-LAZY-LOAD-001] direct loader resolves the real
 });
 
 test('[tickets: POC-TENANTPROCESS-LAZY-LOAD-001] direct loader rejects IDs that discovery did not register', async () => {
-  const loader = new PocTenantProcessLoader(new PocTenantProcessLoadParameterStore());
+  const loader = new TenantProcessLoader(new TenantProcessLoadParameterStore());
 
   await assert.rejects(
     () => loader.load({ tenantProcessId: 'tenant-process.unknown' }),
-    (error) => error instanceof PocTenantProcessLoadError && error.code === 'POC_TENANT_PROCESS_PARAMETERS_NOT_REGISTERED',
+    (error) => error instanceof TenantProcessLoadError && error.code === 'POC_TENANT_PROCESS_PARAMETERS_NOT_REGISTERED',
   );
 });
 
 test('[tickets: POC-TENANTPROCESS-REGISTRATION-GATE-001] explorer excludes incomplete TenantProcess folders from loadable registration', async () => {
-  const store = new PocTenantProcessLoadParameterStore();
-  const explorer = new PocTenantProcessExplorer(tenantsRoot, store);
+  const store = new TenantProcessLoadParameterStore();
+  const explorer = new TenantProcessExplorer(tenantsRoot, store);
 
   const discoveries = await explorer.discover();
 

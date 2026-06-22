@@ -6,12 +6,12 @@ import test, { type TestContext } from 'node:test';
 import { createTaskApi } from '../TaskApi.js';
 import { SystemTraceRecorder } from '../../SystemTrace/index.js';
 import { SqlSystemTraceAdapter, SqlSystemTraceQueryRepository } from '../../SystemTrace/sqlTracePersistence.js';
-import { PlannerWorker } from '../../../poc/planning/PlannerWorker.js';
-import { PocTenantProcessExplorer } from '../../../poc/planning/PocTenantProcessExplorer.js';
-import { PocTenantProcessLoader } from '../../../poc/planning/PocTenantProcessLoader.js';
-import { PocTenantProcessLoadParameterStore } from '../../../poc/planning/PocTenantProcessLoadParameterStore.js';
+import { PlannerWorker } from '../../../application/planners/PlannerWorker.js';
+import { TenantProcessExplorer } from '../../../infrastructure/tenant-process/TenantProcessExplorer.js';
+import { TenantProcessLoader } from '../../../infrastructure/tenant-process/TenantProcessLoader.js';
+import { TenantProcessLoadParameterStore } from '../../../infrastructure/tenant-process/TenantProcessLoadParameterStore.js';
 import { fileURLToPath } from 'node:url';
-import { SqliteTaskStorageGateway } from '../../../poc/task-storage/Test1/SqliteTaskStorageGateway.js';
+import { SqliteTaskStorageGateway } from '../../../infrastructure/task-storage/SqliteTaskStorageGateway.js';
 
 async function startApi(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'taskstream-task-api-'));
@@ -75,10 +75,10 @@ test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle t
     body: JSON.stringify({ name: 'Inspectable task' }),
   });
   const created = await createResponse.json() as { id: string };
-  const parameters = new PocTenantProcessLoadParameterStore();
-  const explorer = new PocTenantProcessExplorer(fileURLToPath(new URL('../../../../Tenants/', import.meta.url)), parameters);
+  const parameters = new TenantProcessLoadParameterStore();
+  const explorer = new TenantProcessExplorer(fileURLToPath(new URL('../../../../Tenants/', import.meta.url)), parameters);
   await explorer.discover();
-  const loader = new PocTenantProcessLoader(parameters);
+  const loader = new TenantProcessLoader(parameters);
   const planned = await new PlannerWorker('api-test-worker', gateway, explorer, loader, traceRecorder).runOnce();
   assert.equal(planned?.status, 'completed');
 
