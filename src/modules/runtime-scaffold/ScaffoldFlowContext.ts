@@ -6,6 +6,11 @@ import type {
 } from '../../definitionRuntime/state/index.js';
 import type { FlowChangeWriter, FlowContext } from '../../domain/tenantProcess/index.js';
 import type { RuntimeScaffoldFlowSelection } from './RuntimeScaffoldPipelineTypes.js';
+import { loadScaffoldArtifactAccessor } from './flow-context/accessors/artifact.js';
+import { loadScaffoldCredentialsAccessor } from './flow-context/accessors/credentials.js';
+import { loadScaffoldHttpAccessor } from './flow-context/accessors/http.js';
+import { loadScaffoldLoggerAccessor } from './flow-context/accessors/logger.js';
+import { loadScaffoldUnitAccessor } from './flow-context/accessors/unit.js';
 
 export function createScaffoldFlowContext(
   selection: RuntimeScaffoldFlowSelection,
@@ -32,6 +37,11 @@ export function createScaffoldFlowContext(
       },
     },
     change,
+    artifact: loadScaffoldArtifactAccessor(),
+    credentials: loadScaffoldCredentialsAccessor(),
+    logger: loadScaffoldLoggerAccessor(),
+    unit: loadScaffoldUnitAccessor(),
+    http: loadScaffoldHttpAccessor(),
     probe(name, evaluate) {
       const cached = probeResults.get(name);
       if (cached !== undefined) {

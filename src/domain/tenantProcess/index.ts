@@ -1,3 +1,18 @@
+export type {
+  FlowAccessorResult,
+  FlowArtifactAccessor,
+  FlowArtifactRecord,
+  FlowCredentialRecord,
+  FlowCredentialsAccessor,
+  FlowHttpAccessor,
+  FlowHttpMethod,
+  FlowHttpRequest,
+  FlowHttpResponse,
+  FlowLogInput,
+  FlowLoggerAccessor,
+  FlowUnitAccessor,
+  FlowUnitRecord,
+} from './accessors/index.js';
 export { TenantProcessValidationError, failTenantProcessValidation } from './errors.js';
 export { channel } from './channel.js';
 export { flow } from './flow.js';

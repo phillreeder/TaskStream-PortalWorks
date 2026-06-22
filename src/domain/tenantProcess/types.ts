@@ -8,6 +8,13 @@ import type {
   StatePathInput,
   StatePathValueInput,
 } from '../../definitionRuntime/state/index.js';
+import type {
+  FlowArtifactAccessor,
+  FlowCredentialsAccessor,
+  FlowHttpAccessor,
+  FlowLoggerAccessor,
+  FlowUnitAccessor,
+} from './accessors/index.js';
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonObject = { readonly [key: string]: JsonValue };
@@ -204,6 +211,11 @@ export interface FlowContext<TState extends StateSnapshot = StateSnapshot> {
   readonly stoRef: STORef;
   readonly state: FlowStateReader<TState>;
   readonly change: FlowChangeWriter;
+  readonly artifact: FlowArtifactAccessor;
+  readonly credentials: FlowCredentialsAccessor;
+  readonly logger: FlowLoggerAccessor;
+  readonly unit: FlowUnitAccessor;
+  readonly http: FlowHttpAccessor;
   probe(name: string, evaluate: FlowProbeEvaluator): boolean;
   success<TResult = unknown>(result?: TResult, options?: FlowResultOptions): FlowResult;
   retry(options?: FlowRetryOptions): FlowResult;

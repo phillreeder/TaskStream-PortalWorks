@@ -66,4 +66,17 @@ describe('createScaffoldFlowContext', () => {
       'Retry delay must be a positive whole number of seconds',
     );
   });
+
+  it('loads unavailable accessor skeletons without throwing', async () => {
+    const context = createScaffoldFlowContext(selection, new StateContainer({ definition: stateDefinition }));
+
+    await expect(context.credentials.get({ name: 'example' })).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'credentials.get is not available in this execution runtime',
+    });
+    await expect(context.logger.info({ message: 'example' })).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'logger.info is not available in this execution runtime',
+    });
+  });
 });
