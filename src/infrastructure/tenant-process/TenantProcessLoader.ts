@@ -1,6 +1,6 @@
 import {
   validateTenantProcessDefinition,
-  type TenantProcessDefinition,
+  type ComposedTenantProcessDefinition,
 } from '../../domain/tenantProcess/index.js';
 import { TenantProcessLoadParameterStore } from './TenantProcessLoadParameterStore.js';
 
@@ -13,9 +13,7 @@ export function tenantProcessCompositeKey(id: TenantProcessCompositeId): string 
   return `${id.tenant}/${id.process}`;
 }
 
-export type DiscoverableTenantProcess = TenantProcessDefinition & {
-  readonly id: TenantProcessCompositeId;
-};
+export type DiscoverableTenantProcess = ComposedTenantProcessDefinition;
 
 export type TenantProcessLoaderInput = {
   readonly tenantProcessId: string;

@@ -1,5 +1,5 @@
 import { defineState } from '../../definitionRuntime/state/defineState.js';
-import type { FieldDefinitions, StateDefinitionInput } from '../../definitionRuntime/state/index.js';
+import type { FieldDefinitions, StateDefinition, StateDefinitionInput } from '../../definitionRuntime/state/index.js';
 import { channel as defineChannel } from './channel.js';
 import { flow as defineFlow } from './flow.js';
 import type {
@@ -32,6 +32,46 @@ export interface TenantProcessSourceDefinition {
   readonly version: number;
   readonly description: string;
   readonly declarationOrder?: readonly TenantProcessDeclarationKind[];
+}
+
+/**
+ * Validated executable TenantProcess shape produced by TenantProcess.define().
+ *
+ * The composition API embeds resolved definition objects so runtime consumers
+ * do not need to reconstruct reference bindings or cast the loaded process to
+ * private anonymous shapes.
+ */
+export interface ComposedTenantProcessChannel {
+  readonly executable: ChannelExecutable;
+}
+
+export interface ComposedTenantProcessSto {
+  readonly flow: FlowExecutable;
+  readonly inputContracts?: readonly InputContract[];
+  readonly resultContracts?: readonly ResultContract[];
+  readonly [key: string]: unknown;
+}
+
+export interface ComposedTenantProcessTask {
+  readonly stateDefinition: StateDefinition<FieldDefinitions>;
+  readonly channel?: ComposedTenantProcessChannel;
+  readonly stos: Readonly<Record<string, ComposedTenantProcessSto>>;
+  readonly defaultSto?: ComposedTenantProcessSto;
+  readonly inputContracts?: readonly InputContract[];
+  readonly [key: string]: unknown;
+}
+
+export interface ComposedTenantProcessDefinition {
+  readonly id: TenantProcessIdentity;
+  readonly name: string;
+  readonly version: number;
+  readonly description: string;
+  readonly tasks: Readonly<Record<string, ComposedTenantProcessTask>>;
+  readonly channels: Readonly<Record<string, ComposedTenantProcessChannel>>;
+  readonly stos: Readonly<Record<string, ComposedTenantProcessSto>>;
+  readonly stateDefinitions: Readonly<Record<string, StateDefinition<FieldDefinitions>>>;
+  readonly inputContracts?: Readonly<Record<string, InputContract>>;
+  readonly resultContracts?: Readonly<Record<string, ResultContract>>;
 }
 
 type StateDefinitionSource<TFields extends FieldDefinitions = FieldDefinitions> =
@@ -151,7 +191,7 @@ class TenantProcessBuilder implements TenantProcessComposer {
     return this.taskRegistry as Readonly<Record<keyof T, unknown>>;
   }
 
-  build(): any {
+  build(): ComposedTenantProcessDefinition {
     const missingKinds = this.order.filter((kind) => !this.declaredKinds.has(kind));
     if (missingKinds.length > 0) {
       throw new Error(
@@ -178,7 +218,7 @@ class TenantProcessBuilder implements TenantProcessComposer {
     };
 
     validateTenantProcessDefinition(tenantProcess);
-    return tenantProcess;
+    return tenantProcess as ComposedTenantProcessDefinition;
   }
 
   private beginPhase(kind: TenantProcessDeclarationKind): void {
@@ -222,7 +262,7 @@ export const TenantProcess = {
   define(
     source: TenantProcessSourceDefinition,
     compose: (context: TenantProcessCompositionContext) => void,
-  ): any {
+  ): ComposedTenantProcessDefinition {
     const builder = new TenantProcessBuilder(source);
     compose({ tp: builder });
     return builder.build();

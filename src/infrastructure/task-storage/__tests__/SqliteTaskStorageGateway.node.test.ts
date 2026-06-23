@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 import { SqliteTaskStorageGateway } from '../SqliteTaskStorageGateway.js';
 
 function createGateway(t: TestContext): SqliteTaskStorageGateway {
@@ -10,6 +11,7 @@ function createGateway(t: TestContext): SqliteTaskStorageGateway {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const gateway = new SqliteTaskStorageGateway(join(directory, 'tasks.sqlite'), {
     defaultTenantProcessId: 'TaskStream/Test1',
+    defaultTaskRef: 'processWork',
     isTenantProcessRegistered: (tenantProcessId) => tenantProcessId === 'TaskStream/Test1',
   });
   t.after(() => gateway.close());
@@ -32,13 +34,13 @@ test('[tickets: POC-EVENT-WORKER-001] stores tasks and exposes platform POC enti
   assert.equal(filtered.length, 1);
   assert.equal(filteredOut.length, 0);
   assert.equal(listed[0]?.id, created.id);
-  assert.deepEqual(listed[0]?.data, { name: 'First task' });
-  assert.deepEqual(stored?.data, { name: 'First task' });
+  assert.deepEqual(listed[0]?.data, { taskRef: 'processWork', name: 'First task' });
+  assert.deepEqual(stored?.data, { taskRef: 'processWork', name: 'First task' });
   assert.equal(stored?.tenantId, 'IEBBeta');
   assert.equal(stored?.tenantProcessId, 'TaskStream/Test1');
-  assert.equal(stored?.schemaVersion, 1);
+  assert.equal(stored?.schemaVersion, 2);
   assert.equal(structure.entityType, 'Task');
-  assert.equal(structure.version, 1);
+  assert.equal(structure.version, 2);
   assert.deepEqual(
     structures.map((entry) => entry.entityType).sort(),
     ['EntityStructureVersion', 'Event', 'EventReaction', 'PersistentQueueItem', 'ProcessWorkEntry', 'Task'],
@@ -68,6 +70,9 @@ test('[tickets: POC-EVENT-WORKER-001] routes supported Task Events to planner qu
   assert.ok(queuedItems.every((item) => item.intentType === 'planner.process-channel'));
   assert.ok(queuedItems.every((item) => item.handlerKey === 'task-planning.process-channel'));
   assert.ok(queuedItems.every((item) => item.tenantProcessId === 'TaskStream/Test1'));
+  assert.ok(queuedItems.every((item) => item.sourceTaskId === created.id));
+  assert.ok(queuedItems.every((item) => item.taskRef === 'processWork'));
+  assert.ok(queuedItems.every((item) => item.taskName === 'Routed task'));
   assert.ok(events.every((event) => event.payload.tenantProcessId === 'TaskStream/Test1'));
 });
 
@@ -192,11 +197,46 @@ test('[tickets: POC-EVENT-WORKER-001] reset clears all lifecycle rows and restor
   assert.equal((await gateway.listEntityStructureVersions()).length, 6);
 });
 
+test('migrates existing Task and queue records to explicit planning identity', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'taskstream-task-gateway-migration-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const databasePath = join(directory, 'tasks.sqlite');
+  const legacy = new DatabaseSync(databasePath);
+  legacy.exec(`
+    CREATE TABLE entity_structure_versions (entity_type TEXT NOT NULL,version INTEGER NOT NULL,structure_json TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(entity_type,version));
+    CREATE TABLE tasks (id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,tenant_process_id TEXT NOT NULL,entity_type TEXT NOT NULL,schema_version INTEGER NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+    CREATE TABLE events (id TEXT PRIMARY KEY,event_type TEXT NOT NULL,source_entity_type TEXT NOT NULL,source_entity_id TEXT NOT NULL,entity_structure_type TEXT NOT NULL,entity_structure_version INTEGER NOT NULL,payload_json TEXT NOT NULL,occurred_at TEXT NOT NULL);
+    CREATE TABLE persistent_queue_items (id TEXT PRIMARY KEY,source_event_id TEXT NOT NULL,tenant_process_id TEXT NOT NULL,event_reaction_id TEXT NOT NULL,intent_type TEXT NOT NULL,handler_key TEXT NOT NULL,status TEXT NOT NULL,attempt_count INTEGER NOT NULL,available_at TEXT NOT NULL,claimed_by TEXT,claimed_at TEXT,completed_at TEXT,failed_at TEXT,last_error TEXT,created_at TEXT NOT NULL);
+    INSERT INTO entity_structure_versions VALUES ('Task',1,'{}','2026-01-01T00:00:00.000Z');
+    INSERT INTO tasks VALUES ('legacy-task','IEBBeta','TaskStream/Test1','Task',1,'{"name":"Legacy task"}','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
+    INSERT INTO events VALUES ('legacy-event','task.created','Task','legacy-task','Event',1,'{"taskId":"legacy-task","taskName":"Legacy task","tenantId":"IEBBeta","tenantProcessId":"TaskStream/Test1"}','2026-01-01T00:00:00.000Z');
+    INSERT INTO persistent_queue_items VALUES ('legacy-queue','legacy-event','TaskStream/Test1','reaction.task-created.process-channel','planner.process-channel','task-planning.process-channel','queued',0,'2026-01-01T00:00:00.000Z',NULL,NULL,NULL,NULL,NULL,'2026-01-01T00:00:00.000Z');
+  `);
+  legacy.close();
+
+  const gateway = new SqliteTaskStorageGateway(databasePath, {
+    defaultTenantProcessId: 'TaskStream/Test1',
+    defaultTaskRef: 'processWork',
+    isTenantProcessRegistered: (tenantProcessId) => tenantProcessId === 'TaskStream/Test1',
+  });
+  t.after(() => gateway.close());
+
+  const task = await gateway.getTask('legacy-task');
+  const queueItem = (await gateway.listPersistentQueueItems())[0];
+
+  assert.equal(task?.schemaVersion, 2);
+  assert.deepEqual(task?.data, { name: 'Legacy task', taskRef: 'processWork' });
+  assert.equal(queueItem?.sourceTaskId, 'legacy-task');
+  assert.equal(queueItem?.taskRef, 'processWork');
+  assert.equal(queueItem?.taskName, 'Legacy task');
+});
+
 test('[tickets: POC-TENANTPROCESS-REGISTRATION-GATE-001] rejects task creation when configured TenantProcess was not registered', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'taskstream-task-gateway-unregistered-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const gateway = new SqliteTaskStorageGateway(join(directory, 'tasks.sqlite'), {
     defaultTenantProcessId: 'tenant-process.unregistered',
+    defaultTaskRef: 'processWork',
     isTenantProcessRegistered: () => false,
   });
   t.after(() => gateway.close());

@@ -1,6 +1,7 @@
 export interface PlannerExecutionDispatch {
   readonly correlationId: string;
   readonly sourceTaskId: string;
+  readonly sourceTaskName: string;
   readonly sourceEventId: string;
   readonly sourceQueueItemId: string;
   readonly tenantProcessId: string;

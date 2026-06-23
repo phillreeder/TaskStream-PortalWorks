@@ -99,6 +99,10 @@ export type { TenantProcessValidationErrorCode } from './errors.js';
 
 export { TenantProcess, TENANT_PROCESS_DECLARATION_ORDER } from './TenantProcess.js';
 export type {
+  ComposedTenantProcessChannel,
+  ComposedTenantProcessDefinition,
+  ComposedTenantProcessSto,
+  ComposedTenantProcessTask,
   TenantProcessComposer,
   TenantProcessCompositionContext,
   TenantProcessDeclarationKind,

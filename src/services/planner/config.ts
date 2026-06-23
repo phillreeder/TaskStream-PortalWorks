@@ -7,6 +7,7 @@ export interface PlannerServiceConfig {
   readonly databasePath: string;
   readonly tenantProcessRoot: string;
   readonly defaultTenantProcessId: string;
+  readonly defaultTaskRef: string;
 }
 
 export function loadPlannerServiceConfig(
@@ -19,6 +20,7 @@ export function loadPlannerServiceConfig(
     databasePath: resolve(environment.PLANNER_DATABASE_PATH?.trim() || 'temp-infra/storage/IEBBeta/Test1/task-storage.sqlite'),
     tenantProcessRoot: resolve(environment.PLANNER_TENANT_PROCESS_ROOT?.trim() || 'Tenants'),
     defaultTenantProcessId: environment.PLANNER_DEFAULT_TENANT_PROCESS_ID?.trim() || 'TaskStream/Test1',
+    defaultTaskRef: environment.PLANNER_DEFAULT_TASK_REF?.trim() || 'processWork',
   };
 }
 

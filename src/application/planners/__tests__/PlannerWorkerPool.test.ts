@@ -6,6 +6,9 @@ function queueItem(id: string): PersistentQueueItem {
   return {
     id,
     sourceEventId: `event-${id}`,
+    sourceTaskId: `task-${id}`,
+    taskRef: 'processWork',
+    taskName: 'Process work',
     tenantProcessId: 'TaskStream/Test1',
     eventReactionId: 'reaction',
     intentType: 'plan',

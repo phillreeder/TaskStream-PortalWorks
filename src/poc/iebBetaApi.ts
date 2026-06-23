@@ -16,6 +16,7 @@ if (!tenantProcessParameters.get(DEFAULT_TENANT_PROCESS_ID)) {
 }
 const gateway = new SqliteTaskStorageGateway(databasePath, {
   defaultTenantProcessId: DEFAULT_TENANT_PROCESS_ID,
+  defaultTaskRef: 'processWork',
   isTenantProcessRegistered: (tenantProcessId) => tenantProcessParameters.get(tenantProcessId) !== undefined,
 });
 const traceAdapter = new SqlSystemTraceAdapter(databasePath);

@@ -25,6 +25,7 @@ export class TaskStorageExecutionWorkPublisher implements ExecutionWorkPublisher
         reason: dispatch.reason,
         flowParams: dispatch.flowParams,
         sourceTaskId: dispatch.sourceTaskId,
+        sourceTaskName: dispatch.sourceTaskName,
         sourceEventId: dispatch.sourceEventId,
         sourceQueueItemId: dispatch.sourceQueueItemId,
         correlationId: dispatch.correlationId,

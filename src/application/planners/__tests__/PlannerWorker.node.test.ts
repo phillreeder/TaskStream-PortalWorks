@@ -19,6 +19,7 @@ function createHarness(t: TestContext) {
   const databasePath = join(directory, 'tasks.sqlite');
   const gateway = new SqliteTaskStorageGateway(databasePath, {
     defaultTenantProcessId: 'TaskStream/Test1',
+    defaultTaskRef: 'processWork',
     isTenantProcessRegistered: (tenantProcessId) => tenantProcessId === 'TaskStream/Test1',
   });
   const traceAdapter = new SqlSystemTraceAdapter(databasePath);
@@ -52,6 +53,9 @@ test('[tickets: POC-TENANTPROCESS-EXECUTION-DISPATCH-001] PlannerWorker dispatch
   assert.equal(events[0]?.sourceEntityId, created.id);
   assert.equal(queueItems[0]?.status, 'completed');
   assert.equal(queueItems[0]?.claimedBy, 'worker-1');
+  assert.equal(queueItems[0]?.sourceTaskId, created.id);
+  assert.equal(queueItems[0]?.taskRef, 'processWork');
+  assert.equal(queueItems[0]?.taskName, 'Dispatch governed work');
   assert.ok(queueItems[0]?.completedAt);
   assert.equal(queueItems[0]?.failedAt, null);
   assert.equal(queueItems[0]?.lastError, null);

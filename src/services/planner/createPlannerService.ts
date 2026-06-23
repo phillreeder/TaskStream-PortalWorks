@@ -36,6 +36,7 @@ export async function createPlannerService(
 
   const gateway = new SqliteTaskStorageGateway(config.databasePath, {
     defaultTenantProcessId: config.defaultTenantProcessId,
+    defaultTaskRef: config.defaultTaskRef,
     isTenantProcessRegistered: (tenantProcessId) => parameters.get(tenantProcessId) !== undefined,
   });
   const traceAdapter = new SqlSystemTraceAdapter(config.databasePath);

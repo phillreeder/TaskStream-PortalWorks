@@ -13,6 +13,7 @@ import type {
   TaskStorageGateway,
 } from '../task-storage/index.js';
 import type { ExecutionWorkPublisher } from './ExecutionWorkPublisher.js';
+import { TenantProcessPlanningPipeline } from './TenantProcessPlanningPipeline.js';
 
 export class PlannerWorker {
   private readonly tenantProcessExplorer: TenantProcessExplorer;
@@ -44,6 +45,9 @@ export class PlannerWorker {
       requestedTenantProcessId: item.tenantProcessId,
       tenantProcessId: item.tenantProcessId,
       workerId: this.workerId,
+      sourceTaskId: item.sourceTaskId,
+      sourceTaskName: item.taskName,
+      taskRef: item.taskRef,
     };
 
     try {
@@ -58,13 +62,32 @@ export class PlannerWorker {
         ...context,
         discoveredTenantProcessCount: String(discoveries.length),
       });
+      const planning = new TenantProcessPlanningPipeline({
+        queueItem: item,
+        sourceEvent: event,
+        loader: this.tenantProcessLoader,
+      });
+
       await this.trace('planner.tenantprocess.loading.started', 'TenantProcess loading started', context);
-      const resolution = await this.tenantProcessLoader.load({ tenantProcessId: item.tenantProcessId });
+      const resolution = await planning.loadTenantProcess();
       const resolvedContext = this.resolvedTraceContext(context, resolution);
       failureContext = resolvedContext;
       await this.trace('planner.tenantprocess.loaded', 'TenantProcess module loaded', resolvedContext);
       await this.trace('planner.tenantprocess.resolved', 'TenantProcess identity verified', resolvedContext);
-      const dispatch = this.resolveDispatch(resolution, event, item);
+
+      planning.resolveTask();
+      planning.resolveChannel();
+      await planning.loadStreamState();
+      planning.createChannelContext();
+      planning.invokeChannel();
+      planning.resolveAndValidateSto();
+      planning.resolveFlow();
+
+      const dispatch = planning.createExecutionDispatch({
+        correlationId,
+        tenantProcessId: resolution.resolvedTenantProcessId,
+        workType: reaction.queueIntentType,
+      });
       const dispatchContext = {
         ...resolvedContext,
         taskRef: dispatch.taskRef,
@@ -74,22 +97,7 @@ export class PlannerWorker {
         executionId: dispatch.executionId,
       };
       await this.trace('planner.channel.entered', 'TenantProcess channel selected governed work', dispatchContext);
-      const publication = await this.executionWorkPublisher.publish({
-        correlationId,
-        sourceTaskId: event.sourceEntityId,
-        sourceEventId: event.id,
-        sourceQueueItemId: item.id,
-        tenantProcessId: resolution.resolvedTenantProcessId,
-        channelRef: dispatch.channelRef,
-        taskRef: dispatch.taskRef,
-        stoRef: dispatch.stoRef,
-        flowRef: dispatch.flowRef,
-        executionId: dispatch.executionId,
-        requestId: dispatch.requestId,
-        workType: reaction.queueIntentType,
-        reason: dispatch.reason,
-        flowParams: dispatch.flowParams,
-      });
+      const publication = await this.executionWorkPublisher.publish(dispatch);
       await this.trace('planner.execution-work.published', 'Governed execution work published', {
         ...dispatchContext,
         workEntryId: publication.id,
@@ -158,7 +166,9 @@ export class PlannerWorker {
   ): Record<string, string> {
     return {
       correlationId,
-      sourceTaskId: event.sourceEntityId,
+      sourceTaskId: item.sourceTaskId,
+      sourceTaskName: item.taskName,
+      taskRef: item.taskRef,
       sourceEventId: event.id,
       sourceQueueItemId: item.id,
       tenantProcessId: item.tenantProcessId,
@@ -179,90 +189,6 @@ export class PlannerWorker {
       loaderKey: resolution.loaderKey,
       requestedTenantProcessId: resolution.requestedTenantProcessId,
       resolvedTenantProcessId: resolution.resolvedTenantProcessId,
-    };
-  }
-
-  private resolveDispatch(
-    resolution: TenantProcessResolution,
-    event: StoredEvent,
-    item: PersistentQueueItem,
-  ): {
-    taskRef: string;
-    channelRef: string;
-    stoRef: string;
-    flowRef: string;
-    executionId: string;
-    requestId: string;
-    reason?: string;
-    flowParams?: Record<string, unknown>;
-  } {
-    const tenantProcess = resolution.tenantProcess as unknown as {
-      readonly name: string;
-      readonly tasks: Record<string, {
-        readonly stateDefinition: { readonly defaults?: Record<string, unknown> };
-        readonly channel?: { readonly executable: (context: any) => { readonly stoName: string; readonly reason?: string } };
-        readonly stos: Record<string, { readonly flow: unknown }>;
-      }>;
-      readonly channels: Record<string, unknown>;
-      readonly stos: Record<string, { readonly flow: unknown }>;
-    };
-
-    const taskEntries = Object.entries(tenantProcess.tasks);
-    if (taskEntries.length !== 1) {
-      throw new Error(`Planner currently requires exactly one Task in ${tenantProcess.name}; found ${taskEntries.length}.`);
-    }
-
-    const [taskRef, task] = taskEntries[0];
-    if (!task.channel) {
-      throw new Error(`Task ${taskRef} does not declare a Channel for planning.`);
-    }
-
-    const channelEntry = Object.entries(tenantProcess.channels).find(([, channel]) => channel === task.channel);
-    if (!channelEntry) {
-      throw new Error(`Task ${taskRef} references a Channel outside the TenantProcess channel collection.`);
-    }
-    const [channelRef] = channelEntry;
-
-    const defaults = task.stateDefinition.defaults;
-    if (!defaults) {
-      throw new Error(`Task ${taskRef} references a StateDefinition without defaults.`);
-    }
-
-    const allowedStos = Object.entries(task.stos);
-    const request = task.channel.executable({
-      taskRef,
-      state: {
-        read: (path: string) => defaults[path],
-        snapshot: () => ({ ...defaults }),
-      },
-      params: {
-        sourceTaskId: event.sourceEntityId,
-        sourceEventId: event.id,
-        sourceQueueItemId: item.id,
-      },
-      selectSto: (stoName: string, reason: string) => ({ type: 'sto', stoName, reason }),
-    });
-
-    const selectedEntry = allowedStos.find(([stoName]) => stoName === request.stoName);
-    if (!selectedEntry) {
-      throw new Error(`Channel ${channelRef} selected STO name ${request.stoName} outside Task ${taskRef}.`);
-    }
-    const [stoRef, sto] = selectedEntry;
-    if (tenantProcess.stos[stoRef] !== sto) {
-      throw new Error(`Task ${taskRef} STO ${stoRef} is not the registered TenantProcess STO object.`);
-    }
-    if (typeof sto.flow !== 'function') {
-      throw new Error(`Selected STO ${stoRef} does not contain an executable Flow.`);
-    }
-
-    return {
-      taskRef,
-      channelRef,
-      stoRef,
-      flowRef: stoRef,
-      executionId: randomUUID(),
-      requestId: randomUUID(),
-      reason: request.reason,
     };
   }
 

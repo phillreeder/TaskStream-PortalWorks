@@ -123,7 +123,7 @@ export class TenantProcessExplorer {
 
     try {
       validateTenantProcessDefinition(candidate);
-      return candidate as DiscoverableTenantProcess;
+      return candidate as unknown as DiscoverableTenantProcess;
     } catch (error) {
       throw new TenantProcessLoadError(
         'POC_TENANT_PROCESS_ENTRY_EXPORT_INVALID',

@@ -20,6 +20,7 @@ async function startApi(t: TestContext) {
   const databasePath = join(directory, 'tasks.sqlite');
   const gateway = new SqliteTaskStorageGateway(databasePath, {
     defaultTenantProcessId: 'TaskStream/Test1',
+    defaultTaskRef: 'processWork',
     isTenantProcessRegistered: (tenantProcessId) => tenantProcessId === 'TaskStream/Test1',
   });
   const traceAdapter = new SqlSystemTraceAdapter(databasePath);
@@ -45,16 +46,16 @@ test('API creates, lists, and retrieves a stored task through /api routes', asyn
     body: JSON.stringify({ name: 'Dashboard-created task' }),
   });
   const created = await createResponse.json() as { id: string };
-  const listResponse = await fetch(`${baseUrl}/api/tasks?tenantId=IEBBeta&tenantProcessId=Test1`);
+  const listResponse = await fetch(`${baseUrl}/api/tasks?tenantId=IEBBeta&tenantProcessId=TaskStream%2FTest1`);
   const tasks = await listResponse.json() as Array<{ id: string; data: { name: string } }>;
   const getResponse = await fetch(`${baseUrl}/api/tasks/${created.id}`);
-  const stored = await getResponse.json() as { id: string; data: { name: string }; schemaVersion: number };
+  const stored = await getResponse.json() as { id: string; data: { taskRef: string; name: string }; schemaVersion: number };
 
   assert.equal(createResponse.status, 201);
   assert.deepEqual(tasks.map((task) => task.id), [created.id]);
   assert.equal(stored.id, created.id);
-  assert.equal(stored.schemaVersion, 1);
-  assert.deepEqual(stored.data, { name: 'Dashboard-created task' });
+  assert.equal(stored.schemaVersion, 2);
+  assert.deepEqual(stored.data, { taskRef: 'processWork', name: 'Dashboard-created task' });
 
   const signalResponse = await fetch(`${baseUrl}/api/tasks/${created.id}/update-signals`, { method: 'POST' });
   const signal = await signalResponse.json() as { taskId: string; status: string };
@@ -140,7 +141,7 @@ test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle t
   assert.equal(traces.at(-1)?.data.sourceQueueItemId, queueItems[0]?.id);
   assert.ok(executionLog.some((record) => record.kind === 'system-trace' && record.stage === 'planner.queue-item.completed'));
   assert.ok(executionLog.some((record) => record.kind === 'domain-record' && record.identifiers.workEntryId));
-  assert.ok(structures.some((record) => record.title === 'Task v1'));
+  assert.ok(structures.some((record) => record.title === 'Task v2'));
   assert.equal(structures[0]?.provenance.sourceType, 'system-registration');
 });
 
@@ -166,7 +167,7 @@ test('POC reset route clears lifecycle data and restores registered structures',
   assert.deepEqual(tasks, []);
   assert.deepEqual(events, []);
   assert.deepEqual(queueItems, []);
-  assert.equal(workEntries.length, 1);
+  assert.equal(workEntries.length, 0);
   assert.deepEqual(traces, []);
   assert.equal(structures.length, 6);
 });

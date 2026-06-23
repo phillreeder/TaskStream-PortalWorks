@@ -67,13 +67,14 @@ export async function routeTaskStorageRequest(
   if (method === 'POST' && url.pathname === '/api/tasks') {
     const body = await readJsonBody(request);
     const name = typeof body.name === 'string' ? body.name : '';
+    const taskRef = typeof body.taskRef === 'string' ? body.taskRef : undefined;
 
     if (!name.trim()) {
       sendJson(response, 400, { error: 'Task name is required.' });
       return true;
     }
 
-    const created = await gateway.createTask({ data: { name } });
+    const created = await gateway.createTask({ data: { taskRef, name } });
     await traceLatestTaskLifecycle(gateway, options.traceRecorder, created.id);
     sendJson(response, 201, created);
     return true;

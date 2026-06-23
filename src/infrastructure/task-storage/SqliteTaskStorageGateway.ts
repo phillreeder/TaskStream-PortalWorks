@@ -55,6 +55,9 @@ type EventRow = {
 type QueueRow = {
   id: string;
   source_event_id: string;
+  source_task_id: string;
+  task_ref: string;
+  task_name: string;
   tenant_process_id: string;
   event_reaction_id: string;
   intent_type: string;
@@ -84,6 +87,7 @@ type WorkRow = {
 };
 export type SqliteTaskStorageGatewayOptions = {
   readonly defaultTenantProcessId: string;
+  readonly defaultTaskRef: string;
   readonly isTenantProcessRegistered: (tenantProcessId: string) => boolean;
 };
 
@@ -99,11 +103,14 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     this.database.exec('PRAGMA foreign_keys = ON;');
     this.createSchema();
     this.registerEntityStructures();
+    this.migrateTaskRecords();
   }
 
   public async createTask(input: CreateTaskInput): Promise<{ id: string }> {
     const name = input.data.name.trim();
     if (!name) throw new Error('Task name is required.');
+    const taskRef = input.data.taskRef?.trim() || this.options.defaultTaskRef.trim();
+    if (!taskRef) throw new Error('Task reference is required.');
 
     const tenantProcessId = this.options.defaultTenantProcessId;
     if (!this.options.isTenantProcessRegistered(tenantProcessId)) {
@@ -124,7 +131,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
           tenantProcessId,
           TASK_ENTITY_TYPE,
           TASK_SCHEMA_VERSION,
-          JSON.stringify({ name }),
+          JSON.stringify({ taskRef, name }),
           timestamp,
           timestamp,
         );
@@ -132,7 +139,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
         eventType: 'task.created',
         sourceEntityType: TASK_ENTITY_TYPE,
         sourceEntityId: id,
-        payload: { taskId: id, taskName: name, tenantId: 'IEBBeta', tenantProcessId },
+        payload: { sourceTaskId: id, taskRef, taskName: name, tenantId: 'IEBBeta', tenantProcessId },
         occurredAt: timestamp,
       });
       this.database.exec('COMMIT;');
@@ -186,7 +193,14 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
         eventType: 'task.updated',
         sourceEntityType: TASK_ENTITY_TYPE,
         sourceEntityId: taskId,
-        payload: { taskId, signalId: signal.id, tenantId: task.tenantId, tenantProcessId: task.tenantProcessId },
+        payload: {
+          sourceTaskId: taskId,
+          taskRef: task.data.taskRef,
+          taskName: task.data.name,
+          signalId: signal.id,
+          tenantId: task.tenantId,
+          tenantProcessId: task.tenantProcessId,
+        },
         occurredAt: signal.createdAt,
       });
       this.database.exec('COMMIT;');
@@ -250,7 +264,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     return (
       this.database
         .prepare(
-          `SELECT id,source_event_id,tenant_process_id,event_reaction_id,intent_type,handler_key,status,attempt_count,available_at,claimed_by,claimed_at,completed_at,failed_at,last_error,created_at FROM persistent_queue_items ORDER BY created_at,id`,
+          `SELECT id,source_event_id,source_task_id,task_ref,task_name,tenant_process_id,event_reaction_id,intent_type,handler_key,status,attempt_count,available_at,claimed_by,claimed_at,completed_at,failed_at,last_error,created_at FROM persistent_queue_items ORDER BY created_at,id`,
         )
         .all() as QueueRow[]
     ).map(this.toQueueItem);
@@ -260,7 +274,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     const now = new Date().toISOString();
     const row = this.database
       .prepare(
-        `UPDATE persistent_queue_items SET status='claimed',claimed_by=?,claimed_at=?,attempt_count=attempt_count+1,last_error=NULL WHERE id=(SELECT id FROM persistent_queue_items WHERE status='queued' AND available_at<=? ORDER BY created_at,id LIMIT 1) AND status='queued' RETURNING id,source_event_id,tenant_process_id,event_reaction_id,intent_type,handler_key,status,attempt_count,available_at,claimed_by,claimed_at,completed_at,failed_at,last_error,created_at`,
+        `UPDATE persistent_queue_items SET status='claimed',claimed_by=?,claimed_at=?,attempt_count=attempt_count+1,last_error=NULL WHERE id=(SELECT id FROM persistent_queue_items WHERE status='queued' AND available_at<=? ORDER BY created_at,id LIMIT 1) AND status='queued' RETURNING id,source_event_id,source_task_id,task_ref,task_name,tenant_process_id,event_reaction_id,intent_type,handler_key,status,attempt_count,available_at,claimed_by,claimed_at,completed_at,failed_at,last_error,created_at`,
       )
       .get(workerId, now, now) as QueueRow | undefined;
     return row ? this.toQueueItem(row) : null;
@@ -270,7 +284,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     const now = new Date().toISOString();
     const row = this.database
       .prepare(
-        `UPDATE persistent_queue_items SET status='completed',completed_at=?,last_error=NULL WHERE id=? AND status='claimed' RETURNING id,source_event_id,tenant_process_id,event_reaction_id,intent_type,handler_key,status,attempt_count,available_at,claimed_by,claimed_at,completed_at,failed_at,last_error,created_at`,
+        `UPDATE persistent_queue_items SET status='completed',completed_at=?,last_error=NULL WHERE id=? AND status='claimed' RETURNING id,source_event_id,source_task_id,task_ref,task_name,tenant_process_id,event_reaction_id,intent_type,handler_key,status,attempt_count,available_at,claimed_by,claimed_at,completed_at,failed_at,last_error,created_at`,
       )
       .get(now, id) as QueueRow | undefined;
     if (!row) throw new Error(`Persistent queue item is not claimed or was not found: ${id}`);
@@ -281,7 +295,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     const now = new Date().toISOString();
     const row = this.database
       .prepare(
-        `UPDATE persistent_queue_items SET status='failed',failed_at=?,last_error=? WHERE id=? AND status='claimed' RETURNING id,source_event_id,tenant_process_id,event_reaction_id,intent_type,handler_key,status,attempt_count,available_at,claimed_by,claimed_at,completed_at,failed_at,last_error,created_at`,
+        `UPDATE persistent_queue_items SET status='failed',failed_at=?,last_error=? WHERE id=? AND status='claimed' RETURNING id,source_event_id,source_task_id,task_ref,task_name,tenant_process_id,event_reaction_id,intent_type,handler_key,status,attempt_count,available_at,claimed_by,claimed_at,completed_at,failed_at,last_error,created_at`,
       )
       .get(now, lastError, id) as QueueRow | undefined;
     if (!row) throw new Error(`Persistent queue item is not claimed or was not found: ${id}`);
@@ -400,11 +414,14 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
       const queueItemId = randomUUID();
       this.database
         .prepare(
-          `INSERT INTO persistent_queue_items (id,source_event_id,tenant_process_id,event_reaction_id,intent_type,handler_key,status,attempt_count,available_at,claimed_by,claimed_at,completed_at,failed_at,last_error,created_at) VALUES (?,?,?,?,?,?,'queued',0,?,NULL,NULL,NULL,NULL,NULL,?)`,
+          `INSERT INTO persistent_queue_items (id,source_event_id,source_task_id,task_ref,task_name,tenant_process_id,event_reaction_id,intent_type,handler_key,status,attempt_count,available_at,claimed_by,claimed_at,completed_at,failed_at,last_error,created_at) VALUES (?,?,?,?,?,?,?,?,?,'queued',0,?,NULL,NULL,NULL,NULL,NULL,?)`,
         )
         .run(
           queueItemId,
           event.id,
+          event.sourceEntityId,
+          this.requireTaskRef(event),
+          this.requireTaskName(event),
           this.requireTenantProcessId(event),
           reaction.id,
           reaction.queueIntentType,
@@ -445,6 +462,9 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
   private readonly toQueueItem = (row: QueueRow): PersistentQueueItem => ({
     id: row.id,
     sourceEventId: row.source_event_id,
+    sourceTaskId: row.source_task_id,
+    taskRef: row.task_ref,
+    taskName: row.task_name,
     tenantProcessId: row.tenant_process_id,
     eventReactionId: row.event_reaction_id,
     intentType: row.intent_type,
@@ -500,7 +520,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
       CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,tenant_process_id TEXT NOT NULL,entity_type TEXT NOT NULL,schema_version INTEGER NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,FOREIGN KEY(entity_type,schema_version) REFERENCES entity_structure_versions(entity_type,version));
       CREATE TABLE IF NOT EXISTS task_update_signals (id TEXT PRIMARY KEY,task_id TEXT NOT NULL,tenant_id TEXT NOT NULL,tenant_process_id TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,FOREIGN KEY(task_id) REFERENCES tasks(id));
       CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY,event_type TEXT NOT NULL,source_entity_type TEXT NOT NULL,source_entity_id TEXT NOT NULL,entity_structure_type TEXT NOT NULL,entity_structure_version INTEGER NOT NULL,payload_json TEXT NOT NULL,occurred_at TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS persistent_queue_items (id TEXT PRIMARY KEY,source_event_id TEXT NOT NULL,tenant_process_id TEXT NOT NULL,event_reaction_id TEXT NOT NULL,intent_type TEXT NOT NULL,handler_key TEXT NOT NULL,status TEXT NOT NULL,attempt_count INTEGER NOT NULL,available_at TEXT NOT NULL,claimed_by TEXT,claimed_at TEXT,completed_at TEXT,failed_at TEXT,last_error TEXT,created_at TEXT NOT NULL,FOREIGN KEY(source_event_id) REFERENCES events(id));
+      CREATE TABLE IF NOT EXISTS persistent_queue_items (id TEXT PRIMARY KEY,source_event_id TEXT NOT NULL,source_task_id TEXT NOT NULL,task_ref TEXT NOT NULL,task_name TEXT NOT NULL,tenant_process_id TEXT NOT NULL,event_reaction_id TEXT NOT NULL,intent_type TEXT NOT NULL,handler_key TEXT NOT NULL,status TEXT NOT NULL,attempt_count INTEGER NOT NULL,available_at TEXT NOT NULL,claimed_by TEXT,claimed_at TEXT,completed_at TEXT,failed_at TEXT,last_error TEXT,created_at TEXT NOT NULL,FOREIGN KEY(source_event_id) REFERENCES events(id));
       CREATE UNIQUE INDEX IF NOT EXISTS persistent_queue_items_source_event_reaction_idx ON persistent_queue_items(source_event_id,event_reaction_id);
       CREATE TABLE IF NOT EXISTS process_work_entries (id TEXT PRIMARY KEY,source_event_id TEXT NOT NULL,source_queue_item_id TEXT NOT NULL UNIQUE,tenant_process_id TEXT NOT NULL,channel_id TEXT NOT NULL,flow_id TEXT NOT NULL,execution_id TEXT NOT NULL,work_type TEXT NOT NULL,status TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL,FOREIGN KEY(source_event_id) REFERENCES events(id),FOREIGN KEY(source_queue_item_id) REFERENCES persistent_queue_items(id));
     `);
@@ -508,6 +528,22 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     this.migrateProcessWorkEntries();
   }
 
+
+  private requireTaskRef(event: StoredEvent): string {
+    const taskRef = event.payload.taskRef;
+    if (typeof taskRef !== 'string' || !taskRef.trim()) {
+      throw new Error(`Event ${event.id} is missing taskRef required for Task resolution.`);
+    }
+    return taskRef;
+  }
+
+  private requireTaskName(event: StoredEvent): string {
+    const taskName = event.payload.taskName;
+    if (typeof taskName !== 'string' || !taskName.trim()) {
+      throw new Error(`Event ${event.id} is missing taskName required for queue diagnostics.`);
+    }
+    return taskName;
+  }
 
   private requireTenantProcessId(event: StoredEvent): string {
     const tenantProcessId = event.payload.tenantProcessId;
@@ -517,15 +553,49 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     return tenantProcessId;
   }
 
+  private migrateTaskRecords(): void {
+    const fallbackTaskRef = this.escapeSqlLiteral(this.options.defaultTaskRef);
+    this.database.exec(`
+      UPDATE tasks
+      SET data_json = json_set(data_json, '$.taskRef', COALESCE(json_extract(data_json, '$.taskRef'), '${fallbackTaskRef}')),
+          schema_version = ${TASK_SCHEMA_VERSION}
+      WHERE schema_version < ${TASK_SCHEMA_VERSION}
+         OR json_extract(data_json, '$.taskRef') IS NULL;
+    `);
+  }
+
   private migratePersistentQueueItems(): void {
     const columns = new Set(
       (this.database.prepare(`PRAGMA table_info(persistent_queue_items)`).all() as Array<{ name: string }>).map((column) => column.name),
     );
+    if (!columns.has('source_task_id')) {
+      this.database.exec(`ALTER TABLE persistent_queue_items ADD COLUMN source_task_id TEXT NOT NULL DEFAULT '';`);
+    }
+    if (!columns.has('task_ref')) {
+      this.database.exec(
+        `ALTER TABLE persistent_queue_items ADD COLUMN task_ref TEXT NOT NULL DEFAULT '${this.escapeSqlLiteral(this.options.defaultTaskRef)}';`,
+      );
+    }
+    if (!columns.has('task_name')) {
+      this.database.exec(`ALTER TABLE persistent_queue_items ADD COLUMN task_name TEXT NOT NULL DEFAULT '';`);
+    }
     if (!columns.has('tenant_process_id')) {
       this.database.exec(
         `ALTER TABLE persistent_queue_items ADD COLUMN tenant_process_id TEXT NOT NULL DEFAULT '${this.escapeSqlLiteral(this.options.defaultTenantProcessId)}';`,
       );
     }
+
+    const fallbackTaskRef = this.escapeSqlLiteral(this.options.defaultTaskRef);
+    this.database.exec(`
+      UPDATE persistent_queue_items
+      SET source_task_id = COALESCE(NULLIF(source_task_id, ''), (
+            SELECT events.source_entity_id FROM events WHERE events.id = persistent_queue_items.source_event_id
+          )),
+          task_ref = COALESCE(NULLIF(task_ref, ''), '${fallbackTaskRef}'),
+          task_name = COALESCE(NULLIF(task_name, ''), (
+            SELECT json_extract(events.payload_json, '$.taskName') FROM events WHERE events.id = persistent_queue_items.source_event_id
+          ), task_ref);
+    `);
   }
 
   private migrateProcessWorkEntries(): void {

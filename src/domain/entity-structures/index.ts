@@ -6,11 +6,12 @@ export type EntityStructure = {
 
 export const TASK_STRUCTURE = {
   entityType: 'Task',
-  version: 1,
+  version: 2,
   structure: {
     type: 'object',
-    required: ['name'],
+    required: ['taskRef', 'name'],
     properties: {
+      taskRef: { type: 'string', minLength: 1 },
       name: { type: 'string', minLength: 1 },
     },
   },
@@ -53,12 +54,15 @@ export const EVENT_REACTION_STRUCTURE = {
 
 export const PLANNER_QUEUE_ITEM_STRUCTURE = {
   entityType: 'PersistentQueueItem',
-  version: 1,
+  version: 2,
   structure: {
     type: 'object',
-    required: ['sourceEventId', 'tenantProcessId', 'eventReactionId', 'intentType', 'handlerKey', 'status', 'attemptCount', 'availableAt', 'createdAt'],
+    required: ['sourceEventId', 'sourceTaskId', 'taskRef', 'taskName', 'tenantProcessId', 'eventReactionId', 'intentType', 'handlerKey', 'status', 'attemptCount', 'availableAt', 'createdAt'],
     properties: {
       sourceEventId: { type: 'string' },
+      sourceTaskId: { type: 'string' },
+      taskRef: { type: 'string' },
+      taskName: { type: 'string' },
       tenantProcessId: { type: 'string' },
       eventReactionId: { type: 'string' },
       intentType: { type: 'string' },

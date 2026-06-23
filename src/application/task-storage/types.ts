@@ -3,8 +3,8 @@ import { TASK_STRUCTURE } from '../../domain/entity-structures/index.js';
 export const TASK_ENTITY_TYPE = TASK_STRUCTURE.entityType;
 export const TASK_SCHEMA_VERSION = TASK_STRUCTURE.version;
 
-export type TaskData = { name: string };
-export type CreateTaskInput = { data: TaskData };
+export type TaskData = { taskRef: string; name: string };
+export type CreateTaskInput = { data: { taskRef?: string; name: string } };
 
 export type StoredTask = {
   id: string;
@@ -41,6 +41,9 @@ export type PersistentQueueStatus = 'queued' | 'claimed' | 'completed' | 'failed
 export type PersistentQueueItem = {
   id: string;
   sourceEventId: string;
+  sourceTaskId: string;
+  taskRef: string;
+  taskName: string;
   tenantProcessId: string;
   eventReactionId: string;
   intentType: string;

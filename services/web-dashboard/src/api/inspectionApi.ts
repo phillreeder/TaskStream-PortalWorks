@@ -19,7 +19,7 @@ export const inspectionApi = {
   },
 
   createTask(name: string): Promise<{ id: string }> {
-    return postJson('/api/tasks', { name });
+    return postJson('/api/tasks', { taskRef: 'processWork', name });
   },
 
   signalTaskUpdate(taskId: string): Promise<TaskUpdateSignal> {
