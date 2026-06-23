@@ -10,6 +10,7 @@ import { TenantProcessExplorer } from '../../../infrastructure/tenant-process/Te
 import { TenantProcessLoader } from '../../../infrastructure/tenant-process/TenantProcessLoader.js';
 import { TenantProcessLoadParameterStore } from '../../../infrastructure/tenant-process/TenantProcessLoadParameterStore.js';
 import { SqliteTaskStorageGateway } from '../../../infrastructure/task-storage/SqliteTaskStorageGateway.js';
+import { TaskStorageExecutionWorkPublisher } from '../../../infrastructure/execution/TaskStorageExecutionWorkPublisher.js';
 import { PlannerWorker } from '../PlannerWorker.js';
 
 function createHarness(t: TestContext) {
@@ -36,7 +37,7 @@ test('[tickets: POC-TENANTPROCESS-EXECUTION-DISPATCH-001] PlannerWorker dispatch
   const explorer = new TenantProcessExplorer(fileURLToPath(new URL('../../../../Tenants/', import.meta.url)), parameters);
   await explorer.discover();
   const loader = new TenantProcessLoader(parameters);
-  const worker = new PlannerWorker('worker-1', gateway, explorer, loader, traceRecorder);
+  const worker = new PlannerWorker('worker-1', gateway, new TaskStorageExecutionWorkPublisher(gateway), explorer, loader, traceRecorder);
 
   const result = await worker.runOnce();
   const workEntries = await gateway.listProcessWorkEntries();
@@ -63,16 +64,16 @@ test('[tickets: POC-TENANTPROCESS-EXECUTION-DISPATCH-001] PlannerWorker dispatch
 
   const operations = traceRecords.map((record) => record.operation);
   assert.deepEqual(operations, [
-    'poc.planner.queue-item.claimed',
-    'poc.planner.tenantprocess.discovery.started',
-    'poc.planner.tenantprocess.discovery.completed',
-    'poc.planner.tenantprocess.loading.started',
-    'poc.planner.tenantprocess.loaded',
-    'poc.planner.tenantprocess.resolved',
-    'poc.tenantprocess.channel.entered',
-    'poc.tenantprocess.work-entry.confirmed',
-    'poc.planner.queue-item.completed',
+    'planner.queue-item.claimed',
+    'planner.tenantprocess.discovery.started',
+    'planner.tenantprocess.discovery.completed',
+    'planner.tenantprocess.loading.started',
+    'planner.tenantprocess.loaded',
+    'planner.tenantprocess.resolved',
+    'planner.channel.entered',
+    'planner.execution-work.published',
+    'planner.queue-item.completed',
   ]);
-  assert.ok(!operations.includes('poc.planner.tenantprocess.execution.failed'));
-  assert.ok(!operations.includes('poc.planner.queue-item.failed'));
+  assert.ok(!operations.includes('planner.tenantprocess.execution.failed'));
+  assert.ok(!operations.includes('planner.queue-item.failed'));
 });

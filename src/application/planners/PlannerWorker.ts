@@ -12,6 +12,7 @@ import type {
   StoredEvent,
   TaskStorageGateway,
 } from '../task-storage/index.js';
+import type { ExecutionWorkPublisher } from './ExecutionWorkPublisher.js';
 
 export class PlannerWorker {
   private readonly tenantProcessExplorer: TenantProcessExplorer;
@@ -19,8 +20,9 @@ export class PlannerWorker {
   private readonly traceRecorder: SystemTraceRecorder;
 
   public constructor(
-    private readonly workerId: string,
+    public readonly workerId: string,
     private readonly gateway: TaskStorageGateway,
+    private readonly executionWorkPublisher: ExecutionWorkPublisher,
     tenantProcessExplorer: TenantProcessExplorer,
     tenantProcessLoader: TenantProcessLoader,
     traceRecorder?: SystemTraceRecorder,
@@ -49,19 +51,19 @@ export class PlannerWorker {
       const reaction = this.validateHandler(event, item);
       const context = this.traceContext(event, item, correlationId, reaction);
       failureContext = context;
-      await this.trace('poc.planner.queue-item.claimed', 'Queue item claimed', context);
-      await this.trace('poc.planner.tenantprocess.discovery.started', 'TenantProcess discovery started', context);
+      await this.trace('planner.queue-item.claimed', 'Queue item claimed', context);
+      await this.trace('planner.tenantprocess.discovery.started', 'TenantProcess discovery started', context);
       const discoveries = await this.tenantProcessExplorer.discover();
-      await this.trace('poc.planner.tenantprocess.discovery.completed', 'TenantProcess discovery completed', {
+      await this.trace('planner.tenantprocess.discovery.completed', 'TenantProcess discovery completed', {
         ...context,
         discoveredTenantProcessCount: String(discoveries.length),
       });
-      await this.trace('poc.planner.tenantprocess.loading.started', 'TenantProcess loading started', context);
+      await this.trace('planner.tenantprocess.loading.started', 'TenantProcess loading started', context);
       const resolution = await this.tenantProcessLoader.load({ tenantProcessId: item.tenantProcessId });
       const resolvedContext = this.resolvedTraceContext(context, resolution);
       failureContext = resolvedContext;
-      await this.trace('poc.planner.tenantprocess.loaded', 'TenantProcess module loaded', resolvedContext);
-      await this.trace('poc.planner.tenantprocess.resolved', 'TenantProcess identity verified', resolvedContext);
+      await this.trace('planner.tenantprocess.loaded', 'TenantProcess module loaded', resolvedContext);
+      await this.trace('planner.tenantprocess.resolved', 'TenantProcess identity verified', resolvedContext);
       const dispatch = this.resolveDispatch(resolution, event, item);
       const dispatchContext = {
         ...resolvedContext,
@@ -71,36 +73,32 @@ export class PlannerWorker {
         flowRef: dispatch.flowRef,
         executionId: dispatch.executionId,
       };
-      await this.trace('poc.tenantprocess.channel.entered', 'TenantProcess channel selected governed work', dispatchContext);
-      const workEntry = await this.gateway.createProcessWorkEntry({
+      await this.trace('planner.channel.entered', 'TenantProcess channel selected governed work', dispatchContext);
+      const publication = await this.executionWorkPublisher.publish({
+        correlationId,
+        sourceTaskId: event.sourceEntityId,
         sourceEventId: event.id,
         sourceQueueItemId: item.id,
         tenantProcessId: resolution.resolvedTenantProcessId,
-        channelId: dispatch.channelRef,
-        flowId: dispatch.flowRef,
+        channelRef: dispatch.channelRef,
+        taskRef: dispatch.taskRef,
+        stoRef: dispatch.stoRef,
+        flowRef: dispatch.flowRef,
         executionId: dispatch.executionId,
+        requestId: dispatch.requestId,
         workType: reaction.queueIntentType,
-        status: 'queued',
-        payload: {
-          taskRef: dispatch.taskRef,
-          stoRef: dispatch.stoRef,
-          requestId: dispatch.requestId,
-          reason: dispatch.reason,
-          flowParams: dispatch.flowParams,
-          sourceTaskId: event.sourceEntityId,
-          sourceEventId: event.id,
-          sourceQueueItemId: item.id,
-        },
+        reason: dispatch.reason,
+        flowParams: dispatch.flowParams,
       });
-      await this.trace('poc.tenantprocess.work-entry.confirmed', 'Governed execution work entry created', {
+      await this.trace('planner.execution-work.published', 'Governed execution work published', {
         ...dispatchContext,
-        workEntryId: workEntry.id,
-        workEntryStatus: workEntry.status,
+        workEntryId: publication.id,
+        workEntryStatus: publication.status,
       });
       const completed = await this.gateway.completePersistentQueueItem(item.id);
-      await this.trace('poc.planner.queue-item.completed', 'Planner queue item completed after execution dispatch', {
+      await this.trace('planner.queue-item.completed', 'Planner queue item completed after execution dispatch', {
         ...dispatchContext,
-        workEntryId: workEntry.id,
+        workEntryId: publication.id,
         queueStatus: completed.status,
       });
       return completed;
@@ -123,7 +121,7 @@ export class PlannerWorker {
       });
       const failed = await this.gateway.failPersistentQueueItem(item.id, `${failure.code}: ${failure.message}`);
       await this.traceFailure(
-        'poc.planner.queue-item.failed',
+        'planner.queue-item.failed',
         'Queue item failed before governed execution dispatch',
         {
           ...failedContext,
@@ -211,7 +209,7 @@ export class PlannerWorker {
 
     const taskEntries = Object.entries(tenantProcess.tasks);
     if (taskEntries.length !== 1) {
-      throw new Error(`POC planner requires exactly one Task in ${tenantProcess.name}; found ${taskEntries.length}.`);
+      throw new Error(`Planner currently requires exactly one Task in ${tenantProcess.name}; found ${taskEntries.length}.`);
     }
 
     const [taskRef, task] = taskEntries[0];
@@ -253,7 +251,7 @@ export class PlannerWorker {
     if (tenantProcess.stos[stoRef] !== sto) {
       throw new Error(`Task ${taskRef} STO ${stoRef} is not the registered TenantProcess STO object.`);
     }
-    if (typeof sto.flow?.executable !== 'function') {
+    if (typeof sto.flow !== 'function') {
       throw new Error(`Selected STO ${stoRef} does not contain an executable Flow.`);
     }
 
@@ -278,14 +276,14 @@ export class PlannerWorker {
       return {
         code: error.code,
         stage: 'tenantprocess-load',
-        operation: 'poc.planner.tenantprocess.loading.failed',
+        operation: 'planner.tenantprocess.loading.failed',
         message: error.message,
       };
     }
     return {
-      code: 'POC_PLANNER_FAILURE',
+      code: 'PLANNER_FAILURE',
       stage: 'planner',
-      operation: 'poc.planner.failure',
+      operation: 'planner.failure',
       message: error instanceof Error ? error.message : 'Unknown planner failure.',
     };
   }

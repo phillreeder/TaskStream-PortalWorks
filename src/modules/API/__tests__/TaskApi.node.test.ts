@@ -12,6 +12,7 @@ import { TenantProcessLoader } from '../../../infrastructure/tenant-process/Tena
 import { TenantProcessLoadParameterStore } from '../../../infrastructure/tenant-process/TenantProcessLoadParameterStore.js';
 import { fileURLToPath } from 'node:url';
 import { SqliteTaskStorageGateway } from '../../../infrastructure/task-storage/SqliteTaskStorageGateway.js';
+import { TaskStorageExecutionWorkPublisher } from '../../../infrastructure/execution/TaskStorageExecutionWorkPublisher.js';
 
 async function startApi(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'taskstream-task-api-'));
@@ -79,7 +80,7 @@ test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle t
   const explorer = new TenantProcessExplorer(fileURLToPath(new URL('../../../../Tenants/', import.meta.url)), parameters);
   await explorer.discover();
   const loader = new TenantProcessLoader(parameters);
-  const planned = await new PlannerWorker('api-test-worker', gateway, explorer, loader, traceRecorder).runOnce();
+  const planned = await new PlannerWorker('api-test-worker', gateway, new TaskStorageExecutionWorkPublisher(gateway), explorer, loader, traceRecorder).runOnce();
   assert.equal(planned?.status, 'completed');
 
   const healthResponse = await fetch(`${baseUrl}/api/health`);
@@ -132,12 +133,12 @@ test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle t
   assert.equal(queueItems[0]?.data.relationship.sourceEventId, events[0]?.id);
   assert.equal(queueItems[0]?.data.relationship.workEntryId, events[0]?.data.relationship.workEntryIds[0]);
   assert.equal(workEntries.length, 1);
-  assert.ok(traces.some((trace) => trace.data.operation === 'poc.planner.tenantprocess.resolved'));
-  assert.ok(traces.some((trace) => trace.data.operation === 'poc.tenantprocess.work-entry.confirmed'));
-  assert.ok(traces.some((trace) => trace.data.operation === 'poc.planner.queue-item.completed'));
-  assert.ok(!traces.some((trace) => trace.data.operation === 'poc.planner.tenantprocess.execution.failed'));
+  assert.ok(traces.some((trace) => trace.data.operation === 'planner.tenantprocess.resolved'));
+  assert.ok(traces.some((trace) => trace.data.operation === 'planner.execution-work.published'));
+  assert.ok(traces.some((trace) => trace.data.operation === 'planner.queue-item.completed'));
+  assert.ok(!traces.some((trace) => trace.data.operation === 'planner.tenantprocess.execution.failed'));
   assert.equal(traces.at(-1)?.data.sourceQueueItemId, queueItems[0]?.id);
-  assert.ok(executionLog.some((record) => record.kind === 'system-trace' && record.stage === 'poc.planner.queue-item.completed'));
+  assert.ok(executionLog.some((record) => record.kind === 'system-trace' && record.stage === 'planner.queue-item.completed'));
   assert.ok(executionLog.some((record) => record.kind === 'domain-record' && record.identifiers.workEntryId));
   assert.ok(structures.some((record) => record.title === 'Task v1'));
   assert.equal(structures[0]?.provenance.sourceType, 'system-registration');

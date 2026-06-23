@@ -25,7 +25,7 @@ test('[tickets: SYST-TRACE-API-001] SQL SystemTrace adapter preserves real trace
   const { recorder, repository } = createHarness(t);
 
   await recorder.trace({
-    operation: 'poc.planner.tenantprocess.resolved',
+    operation: 'planner.tenantprocess.resolved',
     phase: 'POINT',
     severity: 'info',
     status: 'ok',
@@ -53,7 +53,7 @@ test('[tickets: SYST-TRACE-API-001] SQL SystemTrace adapter preserves real trace
   assert.equal(records.length, 1);
   assert.equal(records[0]?.seq, 1);
   assert.equal(records[0]?.family, 'trace');
-  assert.equal(records[0]?.operation, 'poc.planner.tenantprocess.resolved');
+  assert.equal(records[0]?.operation, 'planner.tenantprocess.resolved');
   assert.equal(records[0]?.severity, 'info');
   assert.equal(records[0]?.status, 'ok');
   assert.equal(records[0]?.correlationId, 'task-1');
