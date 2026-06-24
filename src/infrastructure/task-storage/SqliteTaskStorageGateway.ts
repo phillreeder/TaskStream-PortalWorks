@@ -422,7 +422,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
         .run(
           queueItemId,
           event.id,
-          event.sourceEntityId,
+          this.requireSourceTaskId(event),
           this.requireTaskRef(event),
           this.requireTaskName(event),
           this.requireTenantProcessId(event),
@@ -531,6 +531,14 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     this.migrateProcessWorkEntries();
   }
 
+
+  private requireSourceTaskId(event: StoredEvent): string {
+    const sourceTaskId = event.payload.sourceTaskId;
+    if (typeof sourceTaskId !== 'string' || !sourceTaskId.trim()) {
+      throw new Error(`Event ${event.id} is missing sourceTaskId required for queue routing.`);
+    }
+    return sourceTaskId;
+  }
 
   private requireTaskRef(event: StoredEvent): string {
     const taskRef = event.payload.taskRef;

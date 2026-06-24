@@ -45,7 +45,6 @@ export async function createPlannerService(
   const traceAdapter = new SqlSystemTraceAdapter(config.databasePath);
   const streamStateStore = new SqliteStreamStateStore(config.databasePath);
   const streamStateProvider = new StreamStatePlanningProvider(
-    streamStateStore,
     new StreamStateModule(streamStateStore),
   );
   const traceRecorder = new SystemTraceRecorder({ adapter: traceAdapter });

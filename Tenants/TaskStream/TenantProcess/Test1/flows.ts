@@ -1,5 +1,26 @@
 import type { FlowExecutable } from '@TaskStream/App/domain/tenantProcess/index.js';
 
+export const activateProcessWorkFlow = (async (ctx, input) => {
+  const unit = await ctx.unit.create({
+    type: 'process-work',
+    data: {
+      sourceTaskId: input.sourceTaskId,
+      sourceTaskName: input.sourceTaskName,
+      sourceEventId: input.sourceEventId,
+      sourceQueueItemId: input.sourceQueueItemId,
+    },
+  });
+
+  return ctx.success({
+    kind: 'task-activated',
+    unit,
+  }, {
+    metadata: {
+      activationBoundary: 'unit-cycle-stream-materialisation',
+    },
+  });
+}) satisfies FlowExecutable;
+
 export const prepareWorkFlow = (async (ctx, input) => {
   const hasSourceReferences = ctx.probe('has-source-references', () =>
     typeof input.sourceEventId === 'string'

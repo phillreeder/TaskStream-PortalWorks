@@ -29,7 +29,8 @@ export class TaskStorageExecutionWorkPublisher implements ExecutionWorkPublisher
         sourceEventId: dispatch.sourceEventId,
         sourceQueueItemId: dispatch.sourceQueueItemId,
         correlationId: dispatch.correlationId,
-        planningEvidence: dispatch.planningEvidence,
+        ...(dispatch.streamId ? { streamId: dispatch.streamId } : {}),
+        ...(dispatch.planningEvidence ? { planningEvidence: dispatch.planningEvidence } : {}),
       },
     });
 

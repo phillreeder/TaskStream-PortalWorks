@@ -5,7 +5,7 @@ import type { TenantProcessResolution } from '../../../infrastructure/tenant-pro
 import type { StreamStatePlanningContract } from '../../../modules/StreamState/index.js';
 import { TenantProcessPlanningPipeline } from '../TenantProcessPlanningPipeline.js';
 
-function queueItem(): PersistentQueueItem {
+function queueItem(kind: 'activation' | 'stream' = 'stream'): PersistentQueueItem {
   return {
     id: 'queue-1',
     sourceEventId: 'event-1',
@@ -13,9 +13,11 @@ function queueItem(): PersistentQueueItem {
     taskRef: 'secondTask',
     taskName: 'Second task instance',
     tenantProcessId: 'TaskStream/MultiTask',
-    eventReactionId: 'reaction.task-created.process-channel',
-    intentType: 'planner.process-channel',
-    handlerKey: 'task-planning.process-channel',
+    eventReactionId: kind === 'activation'
+      ? 'reaction.task-created.activate-task'
+      : 'reaction.stream-ready.process-channel',
+    intentType: kind === 'activation' ? 'planner.activate-task' : 'planner.process-channel',
+    handlerKey: kind === 'activation' ? 'task-activation.execute' : 'stream-planning.process-channel',
     status: 'claimed',
     attemptCount: 1,
     availableAt: new Date(0).toISOString(),
@@ -28,27 +30,30 @@ function queueItem(): PersistentQueueItem {
   };
 }
 
-const sourceEvent: StoredEvent = {
-  id: 'event-1',
-  eventType: 'task.created',
-  sourceEntityType: 'Task',
-  sourceEntityId: 'task-instance-1',
-  entityStructureType: 'Event',
-  entityStructureVersion: 1,
-  payload: {
-    sourceTaskId: 'task-instance-1',
-    taskRef: 'secondTask',
-    taskName: 'Second task instance',
-    tenantProcessId: 'TaskStream/MultiTask',
-  },
-  occurredAt: new Date(0).toISOString(),
-};
+function sourceEvent(kind: 'activation' | 'stream' = 'stream'): StoredEvent {
+  return {
+    id: 'event-1',
+    eventType: kind === 'activation' ? 'task.created' : 'stream.ready',
+    sourceEntityType: kind === 'activation' ? 'Task' : 'Stream',
+    sourceEntityId: kind === 'activation' ? 'task-instance-1' : 'stream-instance-7',
+    entityStructureType: 'Event',
+    entityStructureVersion: 1,
+    payload: {
+      sourceTaskId: 'task-instance-1',
+      taskRef: 'secondTask',
+      taskName: 'Second task instance',
+      tenantProcessId: 'TaskStream/MultiTask',
+      ...(kind === 'stream' ? { streamId: 'stream-instance-7' } : {}),
+    },
+    occurredAt: new Date(0).toISOString(),
+  };
+}
 
 function planningContract(
   state: Record<string, unknown>,
   options: { readonly streamKey?: string; readonly version?: number } = {},
 ): StreamStatePlanningContract {
-  const streamKey = options.streamKey ?? 'task-instance-1';
+  const streamKey = options.streamKey ?? 'stream-instance-7';
   const version = options.version ?? 4;
   return {
     planningContractId: `planning:${streamKey}:${version}`,
@@ -70,7 +75,8 @@ function planningContract(
   };
 }
 
-test('TenantProcessPlanningPipeline resolves the queued Task key instead of assuming one Task', async () => {
+function fixtureResolution(): TenantProcessResolution {
+  const activationFlow = () => ({ status: 'succeeded' as const });
   const firstFlow = () => ({ status: 'succeeded' as const });
   const secondFlow = () => ({ status: 'succeeded' as const });
   const firstSto = { flow: firstFlow };
@@ -94,11 +100,13 @@ test('TenantProcessPlanningPipeline resolves the queued Task key instead of assu
     stos: { firstSto, secondSto },
     tasks: {
       firstTask: {
+        activationFlow,
         stateDefinition: { defaults: { status: 'pending' } },
         channel: firstChannel,
         stos: { firstSto },
       },
       secondTask: {
+        activationFlow,
         stateDefinition: { defaults: { status: 'pending' } },
         channel: secondChannel,
         stos: { secondSto },
@@ -106,15 +114,19 @@ test('TenantProcessPlanningPipeline resolves the queued Task key instead of assu
     },
   };
 
-  const resolution: TenantProcessResolution = {
+  return {
     tenantProcess: tenantProcess as unknown as TenantProcessResolution['tenantProcess'],
     requestedTenantProcessId: 'TaskStream/MultiTask',
     resolvedTenantProcessId: 'TaskStream/MultiTask',
     loaderKey: 'fixture',
   };
+}
+
+test('TenantProcessPlanningPipeline resolves a Stream before Channel planning and never uses Task UUID as StreamState identity', async () => {
+  const resolution = fixtureResolution();
   const pipeline = new TenantProcessPlanningPipeline({
     queueItem: queueItem(),
-    sourceEvent,
+    sourceEvent: sourceEvent(),
     loader: { load: async () => resolution },
     streamStateProvider: {
       load: async ({ streamKey }) => planningContract({ status: 'pending' }, { streamKey }),
@@ -123,6 +135,7 @@ test('TenantProcessPlanningPipeline resolves the queued Task key instead of assu
 
   await pipeline.loadTenantProcess();
   pipeline.resolveTask();
+  pipeline.resolveStream();
   pipeline.resolveChannel();
   await pipeline.loadStreamState();
   pipeline.createChannelContext();
@@ -132,24 +145,23 @@ test('TenantProcessPlanningPipeline resolves the queued Task key instead of assu
   const dispatch = pipeline.createExecutionDispatch({
     correlationId: 'correlation-1',
     tenantProcessId: resolution.resolvedTenantProcessId,
-    workType: 'planner.process-channel',
+    workType: 'process-channel-result',
   });
 
   assert.equal(dispatch.sourceTaskId, 'task-instance-1');
-  assert.equal(dispatch.sourceTaskName, 'Second task instance');
+  assert.equal(dispatch.streamId, 'stream-instance-7');
   assert.equal(dispatch.taskRef, 'secondTask');
   assert.equal(dispatch.channelRef, 'secondChannel');
   assert.equal(dispatch.stoRef, 'secondSto');
   assert.equal(dispatch.flowRef, 'secondSto');
-  assert.equal(dispatch.reason, 'second task selected');
-  assert.equal(dispatch.planningEvidence.streamKey, 'task-instance-1');
-  assert.equal(dispatch.planningEvidence.effectiveVersion, 4);
-  assert.deepEqual(dispatch.planningEvidence.stateSnapshot, { status: 'pending' });
+  assert.equal(dispatch.planningEvidence?.streamKey, 'stream-instance-7');
+  assert.notEqual(dispatch.planningEvidence?.streamKey, dispatch.sourceTaskId);
 });
 
 test('TenantProcessPlanningPipeline selects the STO from authoritative StreamState and carries its evidence', async () => {
   const prepareSto = { flow: () => ({ status: 'succeeded' as const }) };
   const inspectSto = { flow: () => ({ status: 'succeeded' as const }) };
+  const activationFlow = () => ({ status: 'succeeded' as const });
   const channel = {
     executable: (context: any) => context.state.read('status') === 'pending'
       ? context.selectSto('prepareWork', 'state is pending')
@@ -165,6 +177,7 @@ test('TenantProcessPlanningPipeline selects the STO from authoritative StreamSta
     stos: { prepareWork: prepareSto, inspectWork: inspectSto },
     tasks: {
       secondTask: {
+        activationFlow,
         stateDefinition: { defaults: { status: 'pending' } },
         channel,
         stos: { prepareWork: prepareSto, inspectWork: inspectSto },
@@ -177,21 +190,18 @@ test('TenantProcessPlanningPipeline selects the STO from authoritative StreamSta
     resolvedTenantProcessId: 'TaskStream/StateDriven',
     loaderKey: 'fixture',
   };
-  let seededDefaults: Record<string, unknown> | undefined;
   const pipeline = new TenantProcessPlanningPipeline({
     queueItem: { ...queueItem(), tenantProcessId: 'TaskStream/StateDriven' },
-    sourceEvent,
+    sourceEvent: sourceEvent(),
     loader: { load: async () => resolution },
     streamStateProvider: {
-      load: async ({ streamKey, initialState }) => {
-        seededDefaults = initialState;
-        return planningContract({ status: 'prepared' }, { streamKey, version: 7 });
-      },
+      load: async ({ streamKey }) => planningContract({ status: 'prepared' }, { streamKey, version: 7 }),
     },
   });
 
   await pipeline.loadTenantProcess();
   pipeline.resolveTask();
+  pipeline.resolveStream();
   pipeline.resolveChannel();
   await pipeline.loadStreamState();
   pipeline.createChannelContext();
@@ -201,14 +211,46 @@ test('TenantProcessPlanningPipeline selects the STO from authoritative StreamSta
   const dispatch = pipeline.createExecutionDispatch({
     correlationId: 'correlation-state',
     tenantProcessId: resolution.resolvedTenantProcessId,
-    workType: 'planner.process-channel',
+    workType: 'process-channel-result',
   });
 
-  assert.deepEqual(seededDefaults, { status: 'pending' });
   assert.equal(dispatch.stoRef, 'inspectWork');
   assert.equal(dispatch.reason, 'state has advanced');
-  assert.equal(dispatch.planningEvidence.authoritativeVersion, 7);
-  assert.equal(dispatch.planningEvidence.effectiveVersion, 7);
-  assert.deepEqual(dispatch.planningEvidence.stateSnapshot, { status: 'prepared' });
-  assert.equal(dispatch.planningEvidence.planningContractId, 'planning:task-instance-1:7');
+  assert.equal(dispatch.planningEvidence?.authoritativeVersion, 7);
+  assert.deepEqual(dispatch.planningEvidence?.stateSnapshot, { status: 'prepared' });
+  assert.equal(dispatch.planningEvidence?.planningContractId, 'planning:stream-instance-7:7');
+});
+
+test('TenantProcessPlanningPipeline dispatches Task.activationFlow before any Stream or Channel exists', async () => {
+  const resolution = fixtureResolution();
+  let stateLoadCount = 0;
+  const pipeline = new TenantProcessPlanningPipeline({
+    queueItem: queueItem('activation'),
+    sourceEvent: sourceEvent('activation'),
+    loader: { load: async () => resolution },
+    streamStateProvider: {
+      load: async () => {
+        stateLoadCount += 1;
+        return planningContract({ status: 'pending' });
+      },
+    },
+  });
+
+  await pipeline.loadTenantProcess();
+  pipeline.resolveTask();
+  pipeline.resolveActivationFlow();
+  const dispatch = pipeline.createActivationDispatch({
+    correlationId: 'correlation-activation',
+    tenantProcessId: resolution.resolvedTenantProcessId,
+    workType: 'task-activation',
+  });
+
+  assert.equal(stateLoadCount, 0);
+  assert.equal(dispatch.taskRef, 'secondTask');
+  assert.equal(dispatch.flowRef, 'secondTask.activation');
+  assert.equal(dispatch.channelRef, 'task.activation');
+  assert.equal(dispatch.stoRef, 'task.activation');
+  assert.equal(dispatch.streamId, undefined);
+  assert.equal(dispatch.planningEvidence, undefined);
+  assert.equal(dispatch.flowParams?.sourceTaskId, 'task-instance-1');
 });

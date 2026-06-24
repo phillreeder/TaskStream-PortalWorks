@@ -28,7 +28,6 @@ function createHarness(t: TestContext) {
   const traceAdapter = new SqlSystemTraceAdapter(databasePath);
   const streamStateStore = new SqliteStreamStateStore(databasePath);
   const streamStateProvider = new StreamStatePlanningProvider(
-    streamStateStore,
     new StreamStateModule(streamStateStore),
   );
   const traceRecorder = new SystemTraceRecorder({ adapter: traceAdapter });
@@ -40,7 +39,7 @@ function createHarness(t: TestContext) {
   return { gateway, traceRecorder, traceRepository, streamStateStore, streamStateProvider };
 }
 
-test('[tickets: POC-TENANTPROCESS-EXECUTION-DISPATCH-001] PlannerWorker dispatches validated TenantProcess work and completes planning', async (t) => {
+test('PlannerWorker dispatches Task activation before Stream Channel planning', async (t) => {
   const {
     gateway,
     traceRecorder,
@@ -49,18 +48,7 @@ test('[tickets: POC-TENANTPROCESS-EXECUTION-DISPATCH-001] PlannerWorker dispatch
     streamStateProvider,
   } = createHarness(t);
   const created = await gateway.createTask({ data: { name: 'Dispatch governed work' } });
-  await streamStateStore.saveAuthoritativeState({
-    streamKey: created.id,
-    version: 4,
-    state: {
-      status: 'prepared',
-      sourceEventId: 'prior-event',
-      sourceQueueItemId: '',
-      workEntryId: '',
-      lastError: '',
-    },
-    updatedAt: new Date(500).toISOString(),
-  });
+  const streamId = 'stream-instance-7';
   const parameters = new TenantProcessLoadParameterStore();
   const explorer = new TenantProcessExplorer(fileURLToPath(new URL('../../../../Tenants/', import.meta.url)), parameters);
   await explorer.discover();
@@ -75,55 +63,74 @@ test('[tickets: POC-TENANTPROCESS-EXECUTION-DISPATCH-001] PlannerWorker dispatch
     traceRecorder,
   );
 
-  const result = await worker.runOnce();
-  const workEntries = await gateway.listProcessWorkEntries();
-  const events = await gateway.listEvents();
+  const activationResult = await worker.runOnce();
+  let workEntries = await gateway.listProcessWorkEntries();
+  assert.equal(activationResult?.status, 'completed');
+  assert.equal(workEntries.length, 1);
+  assert.equal(workEntries[0]?.workType, 'task-activation');
+  assert.equal(workEntries[0]?.channelId, 'task.activation');
+  assert.equal(workEntries[0]?.flowId, 'processWork.activation');
+  assert.equal(workEntries[0]?.payload.planningEvidence, undefined);
+  assert.equal(workEntries[0]?.payload.streamId, undefined);
+
+  await streamStateStore.saveAuthoritativeState({
+    streamKey: streamId,
+    version: 4,
+    state: {
+      status: 'prepared',
+      sourceEventId: 'prior-event',
+      sourceQueueItemId: '',
+      workEntryId: '',
+      lastError: '',
+    },
+    updatedAt: new Date(500).toISOString(),
+  });
+  await gateway.recordEvent({
+    eventType: 'stream.ready',
+    sourceEntityType: 'Stream',
+    sourceEntityId: streamId,
+    payload: {
+      streamId,
+      sourceTaskId: created.id,
+      taskRef: 'processWork',
+      taskName: 'Dispatch governed work',
+      tenantProcessId: 'TaskStream/Test1',
+    },
+  });
+
+  const streamResult = await worker.runOnce();
+  const finalRun = await worker.runOnce();
+  workEntries = await gateway.listProcessWorkEntries();
   const queueItems = await gateway.listPersistentQueueItems();
   const traceRecords = traceRepository.list();
-  const secondRun = await worker.runOnce();
 
-  assert.equal(result?.status, 'completed');
-  assert.equal(secondRun, null);
-  assert.equal(events[0]?.eventType, 'task.created');
-  assert.equal(events[0]?.sourceEntityId, created.id);
-  assert.equal(queueItems[0]?.status, 'completed');
-  assert.equal(queueItems[0]?.claimedBy, 'worker-1');
-  assert.equal(queueItems[0]?.sourceTaskId, created.id);
-  assert.equal(queueItems[0]?.taskRef, 'processWork');
-  assert.equal(queueItems[0]?.taskName, 'Dispatch governed work');
-  assert.ok(queueItems[0]?.completedAt);
-  assert.equal(queueItems[0]?.failedAt, null);
-  assert.equal(queueItems[0]?.lastError, null);
-  assert.equal(workEntries.length, 1);
-  assert.equal(workEntries[0]?.tenantProcessId, 'TaskStream/Test1');
-  assert.equal(workEntries[0]?.channelId, 'processWork');
-  assert.equal(workEntries[0]?.flowId, 'inspectWork');
-  assert.equal(workEntries[0]?.status, 'queued');
-  assert.equal(workEntries[0]?.sourceQueueItemId, queueItems[0]?.id);
-  const planningEvidence = workEntries[0]?.payload.planningEvidence as {
+  assert.equal(streamResult?.status, 'completed');
+  assert.equal(finalRun, null);
+  assert.equal(queueItems.length, 2);
+  assert.ok(queueItems.every((item) => item.status === 'completed'));
+  assert.equal(workEntries.length, 2);
+  assert.equal(workEntries[1]?.tenantProcessId, 'TaskStream/Test1');
+  assert.equal(workEntries[1]?.channelId, 'processWork');
+  assert.equal(workEntries[1]?.flowId, 'inspectWork');
+  assert.equal(workEntries[1]?.workType, 'process-channel-result');
+  assert.equal(workEntries[1]?.payload.streamId, streamId);
+  const planningEvidence = workEntries[1]?.payload.planningEvidence as {
     streamKey: string;
     authoritativeVersion: number;
     effectiveVersion: number;
     stateSnapshot: Record<string, unknown>;
   };
-  assert.equal(planningEvidence.streamKey, created.id);
+  assert.equal(planningEvidence.streamKey, streamId);
+  assert.notEqual(planningEvidence.streamKey, created.id);
   assert.equal(planningEvidence.authoritativeVersion, 4);
   assert.equal(planningEvidence.effectiveVersion, 4);
   assert.equal(planningEvidence.stateSnapshot.status, 'prepared');
-  assert.equal((await streamStateStore.getAuthoritativeState(created.id))?.version, 4);
+  assert.equal((await streamStateStore.getAuthoritativeState(streamId))?.version, 4);
 
   const operations = traceRecords.map((record) => record.operation);
-  assert.deepEqual(operations, [
-    'planner.queue-item.claimed',
-    'planner.tenantprocess.discovery.started',
-    'planner.tenantprocess.discovery.completed',
-    'planner.tenantprocess.loading.started',
-    'planner.tenantprocess.loaded',
-    'planner.tenantprocess.resolved',
-    'planner.channel.entered',
-    'planner.execution-work.published',
-    'planner.queue-item.completed',
-  ]);
-  assert.ok(!operations.includes('planner.tenantprocess.execution.failed'));
+  assert.ok(operations.includes('planner.task-activation.prepared'));
+  assert.ok(operations.includes('planner.channel.entered'));
+  assert.equal(operations.filter((operation) => operation === 'planner.execution-work.published').length, 2);
+  assert.equal(operations.filter((operation) => operation === 'planner.queue-item.completed').length, 2);
   assert.ok(!operations.includes('planner.queue-item.failed'));
 });

@@ -28,7 +28,6 @@ export interface TenantProcessPlanningLoader {
 export interface TenantProcessPlanningStreamStateProvider {
   load(input: {
     readonly streamKey: string;
-    readonly initialState: Record<string, unknown>;
   }): Promise<StreamStatePlanningContract>;
 }
 
@@ -48,15 +47,17 @@ export interface CreateExecutionDispatchInput {
 /**
  * Mutable, single-use planning workspace for one claimed queue item.
  *
- * A new instance must be created for every queue item. The staged methods are
- * intentionally explicit so additional planning boundaries can be inserted
- * without turning the sequence into one opaque operation.
+ * Task activation and Stream planning deliberately share TenantProcess and
+ * Flow dispatch mechanics, but only Stream planning may enter a Channel or
+ * read StreamState.
  */
 export class TenantProcessPlanningPipeline {
   private resolution?: TenantProcessResolution;
   private tenantProcess?: ComposedTenantProcessDefinition;
   private task?: ComposedTenantProcessTask;
+  private activationFlow?: FlowExecutable;
   private channel?: ComposedTenantProcessChannel;
+  private streamId?: string;
   private streamState?: ChannelStateReader;
   private streamStatePlanningContract?: StreamStatePlanningContract;
   private channelContext?: ChannelContext;
@@ -88,6 +89,23 @@ export class TenantProcessPlanningPipeline {
     this.task = task;
   }
 
+  public resolveActivationFlow(): void {
+    const task = this.require(this.task, 'Task must be resolved before resolving its activation Flow.');
+    if (typeof task.activationFlow !== 'function') {
+      throw new Error(`Task ${this.input.queueItem.taskRef} does not declare an executable activationFlow.`);
+    }
+    this.activationFlow = task.activationFlow;
+    this.flowRef = `${this.input.queueItem.taskRef}.activation`;
+  }
+
+  public resolveStream(): void {
+    const streamId = this.input.sourceEvent.payload.streamId;
+    if (typeof streamId !== 'string' || !streamId.trim()) {
+      throw new Error(`Stream planning event ${this.input.sourceEvent.id} is missing streamId.`);
+    }
+    this.streamId = streamId;
+  }
+
   public resolveChannel(): void {
     const tenantProcess = this.require(this.tenantProcess, 'TenantProcess must be loaded before resolving its Channel.');
     const task = this.require(this.task, 'Task must be resolved before resolving its Channel.');
@@ -106,21 +124,11 @@ export class TenantProcessPlanningPipeline {
   }
 
   public async loadStreamState(): Promise<void> {
-    const task = this.require(this.task, 'Task must be resolved before loading StreamState.');
-    const defaults = task.stateDefinition.defaults;
-    if (!defaults) {
-      throw new Error(
-        `Task ${this.input.queueItem.taskRef} references a StateDefinition without defaults for initial StreamState creation.`,
-      );
-    }
+    this.require(this.task, 'Task must be resolved before loading StreamState.');
+    const streamId = this.require(this.streamId, 'Stream must be resolved before loading StreamState.');
 
-    // For the current POC, each runtime Task owns one StreamState stream and
-    // the runtime Task UUID is its stable stream key. StateDefinition defaults
-    // are used only to seed a missing authoritative stream; subsequent plans
-    // always read the persisted StreamState through the owning boundary.
     this.streamStatePlanningContract = await this.input.streamStateProvider.load({
-      streamKey: this.input.queueItem.sourceTaskId,
-      initialState: defaults,
+      streamKey: streamId,
     });
 
     const snapshot = this.cloneSnapshot(this.streamStatePlanningContract.resolvedState.state);
@@ -137,6 +145,7 @@ export class TenantProcessPlanningPipeline {
       taskRef: this.input.queueItem.taskRef,
       state: streamState,
       params: {
+        streamId: this.require(this.streamId, 'Stream is unavailable for Channel context.'),
         sourceTaskId: this.input.queueItem.sourceTaskId,
         sourceTaskName: this.input.queueItem.taskName,
         sourceEventId: this.input.sourceEvent.id,
@@ -179,16 +188,39 @@ export class TenantProcessPlanningPipeline {
     this.require(this.tenantProcess, 'TenantProcess must be loaded before resolving a Flow.');
     const sto = this.require(this.sto, 'STO must be resolved before resolving its Flow.');
 
-    // TenantProcess composition currently embeds the executable Flow directly
-    // on the STO and does not yet retain a separate Flow registry key. Preserve
-    // the selected STO reference as the transitional Flow identity until that
-    // definition boundary carries an explicit Flow reference.
     this.flowRef = this.require(this.stoRef, 'STO reference is unavailable.');
     this.flow = sto.flow;
 
     if (typeof this.flow !== 'function') {
       throw new Error(`Selected STO ${this.require(this.stoRef, 'STO reference is unavailable.')} does not contain an executable Flow.`);
     }
+  }
+
+  public createActivationDispatch(input: CreateExecutionDispatchInput): PlannerExecutionDispatch {
+    this.require(this.activationFlow, 'Task activation Flow is unavailable.');
+
+    return {
+      correlationId: input.correlationId,
+      sourceTaskId: this.input.queueItem.sourceTaskId,
+      sourceTaskName: this.input.queueItem.taskName,
+      sourceEventId: this.input.sourceEvent.id,
+      sourceQueueItemId: this.input.queueItem.id,
+      tenantProcessId: input.tenantProcessId,
+      channelRef: 'task.activation',
+      taskRef: this.input.queueItem.taskRef,
+      stoRef: 'task.activation',
+      flowRef: this.require(this.flowRef, 'Activation Flow reference is unavailable.'),
+      executionId: randomUUID(),
+      requestId: randomUUID(),
+      workType: input.workType,
+      reason: 'Task activation requires Unit, Cycle, Stream, and initial StreamState materialisation.',
+      flowParams: {
+        sourceTaskId: this.input.queueItem.sourceTaskId,
+        sourceTaskName: this.input.queueItem.taskName,
+        sourceEventId: this.input.sourceEvent.id,
+        sourceQueueItemId: this.input.queueItem.id,
+      },
+    };
   }
 
   public createExecutionDispatch(input: CreateExecutionDispatchInput): PlannerExecutionDispatch {
@@ -208,6 +240,7 @@ export class TenantProcessPlanningPipeline {
       executionId: randomUUID(),
       requestId: randomUUID(),
       workType: input.workType,
+      streamId: this.require(this.streamId, 'Stream is unavailable for execution dispatch.'),
       planningEvidence: this.createPlanningEvidence(),
       reason: selection.reason,
     };

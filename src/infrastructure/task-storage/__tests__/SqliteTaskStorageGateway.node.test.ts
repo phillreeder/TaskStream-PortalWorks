@@ -47,12 +47,24 @@ test('[tickets: POC-EVENT-WORKER-001] stores tasks and exposes platform POC enti
   );
 });
 
-test('[tickets: POC-EVENT-WORKER-001] routes supported Task Events to planner queue items', async (t) => {
+test('[tickets: POC-EVENT-WORKER-001] routes Task activation and Stream readiness to distinct planner work', async (t) => {
   const gateway = createGateway(t);
 
   const created = await gateway.createTask({ data: { name: 'Routed task' } });
   const updateSignal = await gateway.signalTaskUpdate(created.id);
   const missingUpdateSignal = await gateway.signalTaskUpdate('missing-task');
+  const streamEvent = await gateway.recordEvent({
+    eventType: 'stream.ready',
+    sourceEntityType: 'Stream',
+    sourceEntityId: 'stream-1',
+    payload: {
+      streamId: 'stream-1',
+      sourceTaskId: created.id,
+      taskRef: 'processWork',
+      taskName: 'Routed task',
+      tenantProcessId: 'TaskStream/Test1',
+    },
+  });
   const updateSignals = await gateway.listTaskUpdateSignals();
   const events = await gateway.listEvents();
   const queuedItems = await gateway.listPersistentQueueItems();
@@ -61,19 +73,19 @@ test('[tickets: POC-EVENT-WORKER-001] routes supported Task Events to planner qu
   assert.equal(updateSignal?.status, 'queued');
   assert.equal(missingUpdateSignal, null);
   assert.equal(updateSignals.length, 1);
-  assert.deepEqual(events.map((event) => event.eventType), ['task.created', 'task.updated']);
+  assert.deepEqual(events.map((event) => event.eventType), ['task.created', 'task.updated', 'stream.ready']);
   assert.equal(queuedItems.length, 2);
-  assert.deepEqual(
-    queuedItems.map((item) => item.sourceEventId),
-    events.map((event) => event.id),
-  );
-  assert.ok(queuedItems.every((item) => item.intentType === 'planner.process-channel'));
-  assert.ok(queuedItems.every((item) => item.handlerKey === 'task-planning.process-channel'));
+  assert.equal(queuedItems[0]?.eventReactionId, 'reaction.task-created.activate-task');
+  assert.equal(queuedItems[0]?.intentType, 'planner.activate-task');
+  assert.equal(queuedItems[0]?.handlerKey, 'task-activation.execute');
+  assert.equal(queuedItems[1]?.sourceEventId, streamEvent.id);
+  assert.equal(queuedItems[1]?.eventReactionId, 'reaction.stream-ready.process-channel');
+  assert.equal(queuedItems[1]?.intentType, 'planner.process-channel');
+  assert.equal(queuedItems[1]?.handlerKey, 'stream-planning.process-channel');
   assert.ok(queuedItems.every((item) => item.tenantProcessId === 'TaskStream/Test1'));
   assert.ok(queuedItems.every((item) => item.sourceTaskId === created.id));
   assert.ok(queuedItems.every((item) => item.taskRef === 'processWork'));
   assert.ok(queuedItems.every((item) => item.taskName === 'Routed task'));
-  assert.ok(events.every((event) => event.payload.tenantProcessId === 'TaskStream/Test1'));
 });
 
 test('[tickets: POC-EVENT-WORKER-001] leaves unsupported Events without queue work', async (t) => {

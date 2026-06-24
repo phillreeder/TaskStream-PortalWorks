@@ -15,6 +15,7 @@ import { SqliteTaskStorageGateway } from '../../../infrastructure/task-storage/S
 import { TaskStorageExecutionWorkPublisher } from '../../../infrastructure/execution/TaskStorageExecutionWorkPublisher.js';
 import { SqliteStreamStateStore } from '../../../infrastructure/state/SqliteStreamStateStore.js';
 import { StreamStatePlanningProvider } from '../../../infrastructure/state/StreamStatePlanningProvider.js';
+import { StreamStateModule } from '../../StreamState/index.js';
 
 async function startApi(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'taskstream-task-api-'));
@@ -28,7 +29,6 @@ async function startApi(t: TestContext) {
   const traceAdapter = new SqlSystemTraceAdapter(databasePath);
   const streamStateStore = new SqliteStreamStateStore(databasePath);
   const streamStateProvider = new StreamStatePlanningProvider(
-    streamStateStore,
     new StreamStateModule(streamStateStore),
   );
   const traceRecorder = new SystemTraceRecorder({ adapter: traceAdapter });

@@ -155,6 +155,7 @@ function validateEmbeddedTenantProcessDefinition(process: UnknownRecord): void {
 
   for (const [taskName, task] of Object.entries(tasks)) {
     expectPlainObject(task, `tenantProcess.tasks.${taskName}`);
+    expectFunction(task.activationFlow, `tenantProcess.tasks.${taskName}.activationFlow`);
     requireObjectIdentity(stateDefinitions, task.stateDefinition, `tenantProcess.tasks.${taskName}.stateDefinition`);
     if (task.channel !== undefined) {
       requireObjectIdentity(channels, task.channel, `tenantProcess.tasks.${taskName}.channel`);

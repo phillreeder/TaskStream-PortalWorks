@@ -53,6 +53,7 @@ export interface ComposedTenantProcessSto {
 }
 
 export interface ComposedTenantProcessTask {
+  readonly activationFlow: FlowExecutable;
   readonly stateDefinition: StateDefinition<FieldDefinitions>;
   readonly channel?: ComposedTenantProcessChannel;
   readonly stos: Readonly<Record<string, ComposedTenantProcessSto>>;
@@ -92,6 +93,7 @@ export interface TenantProcessStoSource {
 type StoRegistrySource = Readonly<Record<string, TenantProcessStoSource>>;
 
 export interface TenantProcessTaskSource {
+  readonly activationFlow: FlowExecutable;
   readonly stateDefinition: unknown;
   readonly channel?: unknown;
   readonly stos: Readonly<Record<string, unknown>>;
@@ -186,7 +188,10 @@ class TenantProcessBuilder implements TenantProcessComposer {
     this.beginPhase('tasks');
     for (const [name, source] of Object.entries(tasks)) {
       this.assertUnique(this.taskRegistry, 'task', name);
-      this.taskRegistry[name] = { ...source };
+      this.taskRegistry[name] = {
+        ...source,
+        activationFlow: defineFlow(source.activationFlow),
+      };
     }
     return this.taskRegistry as Readonly<Record<keyof T, unknown>>;
   }

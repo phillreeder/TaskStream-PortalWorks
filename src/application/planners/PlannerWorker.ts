@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { TASK_PLANNING_HANDLER_KEY, resolveEventReaction } from '../events/EventReactionResolver.js';
+import {
+  STREAM_PLANNING_HANDLER_KEY,
+  TASK_ACTIVATION_HANDLER_KEY,
+  resolveEventReaction,
+  type EventReaction,
+} from '../events/EventReactionResolver.js';
 import { SystemTraceRecorder, type SystemTraceAdapter } from '../../modules/SystemTrace/index.js';
 import {
   TenantProcessLoadError,
@@ -12,7 +17,7 @@ import type {
   StoredEvent,
   TaskStorageGateway,
 } from '../task-storage/index.js';
-import type { ExecutionWorkPublisher } from './ExecutionWorkPublisher.js';
+import type { ExecutionWorkPublisher, PlannerExecutionDispatch } from './ExecutionWorkPublisher.js';
 import {
   TenantProcessPlanningPipeline,
   type TenantProcessPlanningStreamStateProvider,
@@ -66,6 +71,7 @@ export class PlannerWorker {
         ...context,
         discoveredTenantProcessCount: String(discoveries.length),
       });
+
       const planning = new TenantProcessPlanningPipeline({
         queueItem: item,
         sourceEvent: event,
@@ -81,30 +87,21 @@ export class PlannerWorker {
       await this.trace('planner.tenantprocess.resolved', 'TenantProcess identity verified', resolvedContext);
 
       planning.resolveTask();
-      planning.resolveChannel();
-      await planning.loadStreamState();
-      planning.createChannelContext();
-      planning.invokeChannel();
-      planning.resolveAndValidateSto();
-      planning.resolveFlow();
+      const dispatch = reaction.handlerKey === TASK_ACTIVATION_HANDLER_KEY
+        ? this.planTaskActivation(planning, correlationId, resolution, reaction)
+        : await this.planStream(planning, correlationId, resolution, reaction);
 
-      const dispatch = planning.createExecutionDispatch({
-        correlationId,
-        tenantProcessId: resolution.resolvedTenantProcessId,
-        workType: reaction.queueIntentType,
-      });
-      const dispatchContext = {
-        ...resolvedContext,
-        taskRef: dispatch.taskRef,
-        channelRef: dispatch.channelRef,
-        stoRef: dispatch.stoRef,
-        flowRef: dispatch.flowRef,
-        executionId: dispatch.executionId,
-        streamKey: dispatch.planningEvidence.streamKey,
-        planningContractId: dispatch.planningEvidence.planningContractId,
-        plannedStateVersion: String(dispatch.planningEvidence.effectiveVersion),
-      };
-      await this.trace('planner.channel.entered', 'TenantProcess channel selected governed work', dispatchContext);
+      const dispatchContext = this.dispatchTraceContext(resolvedContext, dispatch);
+      await this.trace(
+        reaction.handlerKey === TASK_ACTIVATION_HANDLER_KEY
+          ? 'planner.task-activation.prepared'
+          : 'planner.channel.entered',
+        reaction.handlerKey === TASK_ACTIVATION_HANDLER_KEY
+          ? 'Task activation Flow prepared for execution'
+          : 'TenantProcess Channel selected governed Stream work',
+        dispatchContext,
+      );
+
       const publication = await this.executionWorkPublisher.publish(dispatch);
       await this.trace('planner.execution-work.published', 'Governed execution work published', {
         ...dispatchContext,
@@ -148,19 +145,53 @@ export class PlannerWorker {
     }
   }
 
+  private planTaskActivation(
+    planning: TenantProcessPlanningPipeline,
+    correlationId: string,
+    resolution: TenantProcessResolution,
+    reaction: EventReaction,
+  ): PlannerExecutionDispatch {
+    planning.resolveActivationFlow();
+    return planning.createActivationDispatch({
+      correlationId,
+      tenantProcessId: resolution.resolvedTenantProcessId,
+      workType: reaction.workType,
+    });
+  }
+
+  private async planStream(
+    planning: TenantProcessPlanningPipeline,
+    correlationId: string,
+    resolution: TenantProcessResolution,
+    reaction: EventReaction,
+  ): Promise<PlannerExecutionDispatch> {
+    planning.resolveStream();
+    planning.resolveChannel();
+    await planning.loadStreamState();
+    planning.createChannelContext();
+    planning.invokeChannel();
+    planning.resolveAndValidateSto();
+    planning.resolveFlow();
+    return planning.createExecutionDispatch({
+      correlationId,
+      tenantProcessId: resolution.resolvedTenantProcessId,
+      workType: reaction.workType,
+    });
+  }
+
   private async loadSourceEvent(item: PersistentQueueItem): Promise<StoredEvent> {
     const event = await this.gateway.getEvent(item.sourceEventId);
     if (!event) throw new Error(`Source event not found for queue item: ${item.id}`);
     return event;
   }
 
-  private validateHandler(event: StoredEvent, item: PersistentQueueItem): NonNullable<ReturnType<typeof resolveEventReaction>> {
+  private validateHandler(event: StoredEvent, item: PersistentQueueItem): EventReaction {
     const reaction = resolveEventReaction(event.eventType);
     if (!reaction || reaction.id !== item.eventReactionId || reaction.handlerKey !== item.handlerKey) {
       throw new Error(`No matching event reaction handler for queue item: ${item.id}`);
     }
 
-    if (item.handlerKey !== TASK_PLANNING_HANDLER_KEY) {
+    if (item.handlerKey !== TASK_ACTIVATION_HANDLER_KEY && item.handlerKey !== STREAM_PLANNING_HANDLER_KEY) {
       throw new Error(`Unsupported queue handler: ${item.handlerKey}`);
     }
     return reaction;
@@ -170,7 +201,7 @@ export class PlannerWorker {
     event: StoredEvent,
     item: PersistentQueueItem,
     correlationId: string,
-    reaction: NonNullable<ReturnType<typeof resolveEventReaction>>,
+    reaction: EventReaction,
   ): Record<string, string> {
     return {
       correlationId,
@@ -185,6 +216,7 @@ export class PlannerWorker {
       eventReactionId: reaction.id,
       intentType: reaction.queueIntentType,
       handlerKey: reaction.handlerKey,
+      ...(typeof event.payload.streamId === 'string' ? { streamId: event.payload.streamId } : {}),
     };
   }
 
@@ -197,6 +229,26 @@ export class PlannerWorker {
       loaderKey: resolution.loaderKey,
       requestedTenantProcessId: resolution.requestedTenantProcessId,
       resolvedTenantProcessId: resolution.resolvedTenantProcessId,
+    };
+  }
+
+  private dispatchTraceContext(
+    context: Record<string, string>,
+    dispatch: PlannerExecutionDispatch,
+  ): Record<string, string> {
+    return {
+      ...context,
+      taskRef: dispatch.taskRef,
+      channelRef: dispatch.channelRef,
+      stoRef: dispatch.stoRef,
+      flowRef: dispatch.flowRef,
+      executionId: dispatch.executionId,
+      ...(dispatch.streamId ? { streamId: dispatch.streamId } : {}),
+      ...(dispatch.planningEvidence ? {
+        streamKey: dispatch.planningEvidence.streamKey,
+        planningContractId: dispatch.planningEvidence.planningContractId,
+        plannedStateVersion: String(dispatch.planningEvidence.effectiveVersion),
+      } : {}),
     };
   }
 

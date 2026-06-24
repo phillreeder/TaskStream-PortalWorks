@@ -14,7 +14,8 @@ export interface PlannerExecutionDispatch {
   readonly executionId: string;
   readonly requestId: string;
   readonly workType: string;
-  readonly planningEvidence: StreamStatePlanningEvidence;
+  readonly streamId?: string;
+  readonly planningEvidence?: StreamStatePlanningEvidence;
   readonly reason?: string;
   readonly flowParams?: Record<string, unknown>;
 }
