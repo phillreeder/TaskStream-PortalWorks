@@ -2,10 +2,13 @@ import type { ExecutionWorkPublisher } from '../../application/planners/Executio
 import { PlannerWorker } from '../../application/planners/PlannerWorker.js';
 import { PlannerWorkerPool } from '../../application/planners/PlannerWorkerPool.js';
 import { TaskStorageExecutionWorkPublisher } from '../../infrastructure/execution/TaskStorageExecutionWorkPublisher.js';
+import { SqliteStreamStateStore } from '../../infrastructure/state/SqliteStreamStateStore.js';
+import { StreamStatePlanningProvider } from '../../infrastructure/state/StreamStatePlanningProvider.js';
 import { TenantProcessExplorer } from '../../infrastructure/tenant-process/TenantProcessExplorer.js';
 import { TenantProcessLoader } from '../../infrastructure/tenant-process/TenantProcessLoader.js';
 import { TenantProcessLoadParameterStore } from '../../infrastructure/tenant-process/TenantProcessLoadParameterStore.js';
 import { SqliteTaskStorageGateway } from '../../infrastructure/task-storage/SqliteTaskStorageGateway.js';
+import { StreamStateModule } from '../../modules/StreamState/index.js';
 import { SystemTraceRecorder } from '../../modules/SystemTrace/index.js';
 import { SqlSystemTraceAdapter } from '../../modules/SystemTrace/sqlTracePersistence.js';
 import { loadPlannerServiceConfig, type PlannerServiceConfig } from './config.js';
@@ -40,6 +43,11 @@ export async function createPlannerService(
     isTenantProcessRegistered: (tenantProcessId) => parameters.get(tenantProcessId) !== undefined,
   });
   const traceAdapter = new SqlSystemTraceAdapter(config.databasePath);
+  const streamStateStore = new SqliteStreamStateStore(config.databasePath);
+  const streamStateProvider = new StreamStatePlanningProvider(
+    streamStateStore,
+    new StreamStateModule(streamStateStore),
+  );
   const traceRecorder = new SystemTraceRecorder({ adapter: traceAdapter });
   const loader = new TenantProcessLoader(parameters);
   const executionWorkPublisher = options.executionWorkPublisher
@@ -57,6 +65,7 @@ export async function createPlannerService(
       executionWorkPublisher,
       explorer,
       loader,
+      streamStateProvider,
       traceRecorder,
     ),
   });
@@ -64,6 +73,6 @@ export async function createPlannerService(
   return new PlannerService({
     pool,
     validatedTenantProcessIds: discoveries.map((entry) => entry.tenantProcessId),
-    resources: [gateway, traceAdapter],
+    resources: [gateway, traceAdapter, streamStateStore],
   });
 }

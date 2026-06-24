@@ -362,6 +362,9 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
   public async resetDatabase(): Promise<void> {
     this.database.exec('BEGIN IMMEDIATE;');
     try {
+      if (this.hasTable('stream_states')) {
+        this.database.exec('DELETE FROM stream_states;');
+      }
       this.database.exec(`
         DELETE FROM process_work_entries;
         DELETE FROM persistent_queue_items;
@@ -613,6 +616,14 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
         this.database.exec(`ALTER TABLE process_work_entries ADD COLUMN ${column} TEXT NOT NULL DEFAULT ${defaultValue};`);
       }
     }
+  }
+
+
+  private hasTable(tableName: string): boolean {
+    const row = this.database
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(tableName) as { name: string } | undefined;
+    return row !== undefined;
   }
 
   private escapeSqlLiteral(value: string): string {

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test, { type TestContext } from 'node:test';
+import { StreamStateModule } from '../../../modules/StreamState/index.js';
 import { SystemTraceRecorder } from '../../../modules/SystemTrace/index.js';
 import { SqlSystemTraceAdapter, SqlSystemTraceQueryRepository } from '../../../modules/SystemTrace/sqlTracePersistence.js';
 import { TenantProcessExplorer } from '../../../infrastructure/tenant-process/TenantProcessExplorer.js';
@@ -11,6 +12,8 @@ import { TenantProcessLoader } from '../../../infrastructure/tenant-process/Tena
 import { TenantProcessLoadParameterStore } from '../../../infrastructure/tenant-process/TenantProcessLoadParameterStore.js';
 import { SqliteTaskStorageGateway } from '../../../infrastructure/task-storage/SqliteTaskStorageGateway.js';
 import { TaskStorageExecutionWorkPublisher } from '../../../infrastructure/execution/TaskStorageExecutionWorkPublisher.js';
+import { SqliteStreamStateStore } from '../../../infrastructure/state/SqliteStreamStateStore.js';
+import { StreamStatePlanningProvider } from '../../../infrastructure/state/StreamStatePlanningProvider.js';
 import { PlannerWorker } from '../PlannerWorker.js';
 
 function createHarness(t: TestContext) {
@@ -23,22 +26,54 @@ function createHarness(t: TestContext) {
     isTenantProcessRegistered: (tenantProcessId) => tenantProcessId === 'TaskStream/Test1',
   });
   const traceAdapter = new SqlSystemTraceAdapter(databasePath);
+  const streamStateStore = new SqliteStreamStateStore(databasePath);
+  const streamStateProvider = new StreamStatePlanningProvider(
+    streamStateStore,
+    new StreamStateModule(streamStateStore),
+  );
   const traceRecorder = new SystemTraceRecorder({ adapter: traceAdapter });
   const traceRepository = new SqlSystemTraceQueryRepository(databasePath);
   t.after(() => gateway.close());
   t.after(() => traceAdapter.close());
+  t.after(() => streamStateStore.close());
   t.after(() => traceRepository.close());
-  return { gateway, traceRecorder, traceRepository };
+  return { gateway, traceRecorder, traceRepository, streamStateStore, streamStateProvider };
 }
 
 test('[tickets: POC-TENANTPROCESS-EXECUTION-DISPATCH-001] PlannerWorker dispatches validated TenantProcess work and completes planning', async (t) => {
-  const { gateway, traceRecorder, traceRepository } = createHarness(t);
+  const {
+    gateway,
+    traceRecorder,
+    traceRepository,
+    streamStateStore,
+    streamStateProvider,
+  } = createHarness(t);
   const created = await gateway.createTask({ data: { name: 'Dispatch governed work' } });
+  await streamStateStore.saveAuthoritativeState({
+    streamKey: created.id,
+    version: 4,
+    state: {
+      status: 'prepared',
+      sourceEventId: 'prior-event',
+      sourceQueueItemId: '',
+      workEntryId: '',
+      lastError: '',
+    },
+    updatedAt: new Date(500).toISOString(),
+  });
   const parameters = new TenantProcessLoadParameterStore();
   const explorer = new TenantProcessExplorer(fileURLToPath(new URL('../../../../Tenants/', import.meta.url)), parameters);
   await explorer.discover();
   const loader = new TenantProcessLoader(parameters);
-  const worker = new PlannerWorker('worker-1', gateway, new TaskStorageExecutionWorkPublisher(gateway), explorer, loader, traceRecorder);
+  const worker = new PlannerWorker(
+    'worker-1',
+    gateway,
+    new TaskStorageExecutionWorkPublisher(gateway),
+    explorer,
+    loader,
+    streamStateProvider,
+    traceRecorder,
+  );
 
   const result = await worker.runOnce();
   const workEntries = await gateway.listProcessWorkEntries();
@@ -62,9 +97,20 @@ test('[tickets: POC-TENANTPROCESS-EXECUTION-DISPATCH-001] PlannerWorker dispatch
   assert.equal(workEntries.length, 1);
   assert.equal(workEntries[0]?.tenantProcessId, 'TaskStream/Test1');
   assert.equal(workEntries[0]?.channelId, 'processWork');
-  assert.equal(workEntries[0]?.flowId, 'prepareWork');
+  assert.equal(workEntries[0]?.flowId, 'inspectWork');
   assert.equal(workEntries[0]?.status, 'queued');
   assert.equal(workEntries[0]?.sourceQueueItemId, queueItems[0]?.id);
+  const planningEvidence = workEntries[0]?.payload.planningEvidence as {
+    streamKey: string;
+    authoritativeVersion: number;
+    effectiveVersion: number;
+    stateSnapshot: Record<string, unknown>;
+  };
+  assert.equal(planningEvidence.streamKey, created.id);
+  assert.equal(planningEvidence.authoritativeVersion, 4);
+  assert.equal(planningEvidence.effectiveVersion, 4);
+  assert.equal(planningEvidence.stateSnapshot.status, 'prepared');
+  assert.equal((await streamStateStore.getAuthoritativeState(created.id))?.version, 4);
 
   const operations = traceRecords.map((record) => record.operation);
   assert.deepEqual(operations, [

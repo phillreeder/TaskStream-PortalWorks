@@ -1,3 +1,5 @@
+import type { StreamStatePlanningEvidence } from '../execution/types.js';
+
 export interface PlannerExecutionDispatch {
   readonly correlationId: string;
   readonly sourceTaskId: string;
@@ -12,6 +14,7 @@ export interface PlannerExecutionDispatch {
   readonly executionId: string;
   readonly requestId: string;
   readonly workType: string;
+  readonly planningEvidence: StreamStatePlanningEvidence;
   readonly reason?: string;
   readonly flowParams?: Record<string, unknown>;
 }

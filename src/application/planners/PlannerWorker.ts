@@ -13,7 +13,10 @@ import type {
   TaskStorageGateway,
 } from '../task-storage/index.js';
 import type { ExecutionWorkPublisher } from './ExecutionWorkPublisher.js';
-import { TenantProcessPlanningPipeline } from './TenantProcessPlanningPipeline.js';
+import {
+  TenantProcessPlanningPipeline,
+  type TenantProcessPlanningStreamStateProvider,
+} from './TenantProcessPlanningPipeline.js';
 
 export class PlannerWorker {
   private readonly tenantProcessExplorer: TenantProcessExplorer;
@@ -26,6 +29,7 @@ export class PlannerWorker {
     private readonly executionWorkPublisher: ExecutionWorkPublisher,
     tenantProcessExplorer: TenantProcessExplorer,
     tenantProcessLoader: TenantProcessLoader,
+    private readonly streamStateProvider: TenantProcessPlanningStreamStateProvider,
     traceRecorder?: SystemTraceRecorder,
   ) {
     this.traceRecorder = traceRecorder ?? new SystemTraceRecorder({ adapter: new NoopSystemTraceAdapter() });
@@ -66,6 +70,7 @@ export class PlannerWorker {
         queueItem: item,
         sourceEvent: event,
         loader: this.tenantProcessLoader,
+        streamStateProvider: this.streamStateProvider,
       });
 
       await this.trace('planner.tenantprocess.loading.started', 'TenantProcess loading started', context);
@@ -95,6 +100,9 @@ export class PlannerWorker {
         stoRef: dispatch.stoRef,
         flowRef: dispatch.flowRef,
         executionId: dispatch.executionId,
+        streamKey: dispatch.planningEvidence.streamKey,
+        planningContractId: dispatch.planningEvidence.planningContractId,
+        plannedStateVersion: String(dispatch.planningEvidence.effectiveVersion),
       };
       await this.trace('planner.channel.entered', 'TenantProcess channel selected governed work', dispatchContext);
       const publication = await this.executionWorkPublisher.publish(dispatch);

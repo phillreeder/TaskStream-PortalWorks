@@ -1,7 +1,22 @@
+import type { ExpectedStateChange, StateDependencyBlock, StatePath } from '../../modules/StreamState/index.js';
+
 export type ExecutionWorkId = string;
 export type ExecutionQueueId = string;
 export type ExecutionPoolId = string;
 export type ExecutionWorkerId = string;
+
+export interface StreamStatePlanningEvidence {
+  readonly streamKey: string;
+  readonly planningContractId: string;
+  readonly authoritativeVersion: number;
+  readonly effectiveVersion: number;
+  readonly stateSnapshot: Record<string, unknown>;
+  readonly readablePaths: readonly StatePath[];
+  readonly writablePaths: readonly StatePath[];
+  readonly expectedChanges: readonly ExpectedStateChange[];
+  readonly dependencyBlocks: readonly StateDependencyBlock[];
+  readonly capturedAt: string;
+}
 
 export interface ExecutionWorkPayload {
   readonly tenantProcessId: string;
@@ -10,6 +25,7 @@ export interface ExecutionWorkPayload {
   readonly flowRef: string;
   readonly executionId: string;
   readonly input: Record<string, unknown>;
+  readonly planningEvidence?: StreamStatePlanningEvidence;
 }
 
 export interface ExecutionWork {

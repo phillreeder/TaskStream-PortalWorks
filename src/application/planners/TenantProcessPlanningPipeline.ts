@@ -17,16 +17,26 @@ import type {
   PersistentQueueItem,
   StoredEvent,
 } from '../task-storage/index.js';
+import type { StreamStatePlanningContract } from '../../modules/StreamState/index.js';
+import type { StreamStatePlanningEvidence } from '../execution/types.js';
 import type { PlannerExecutionDispatch } from './ExecutionWorkPublisher.js';
 
 export interface TenantProcessPlanningLoader {
   load(input: TenantProcessLoaderInput): Promise<TenantProcessResolution>;
 }
 
+export interface TenantProcessPlanningStreamStateProvider {
+  load(input: {
+    readonly streamKey: string;
+    readonly initialState: Record<string, unknown>;
+  }): Promise<StreamStatePlanningContract>;
+}
+
 export interface TenantProcessPlanningPipelineInput {
   readonly queueItem: PersistentQueueItem;
   readonly sourceEvent: StoredEvent;
   readonly loader: TenantProcessPlanningLoader;
+  readonly streamStateProvider: TenantProcessPlanningStreamStateProvider;
 }
 
 export interface CreateExecutionDispatchInput {
@@ -48,6 +58,7 @@ export class TenantProcessPlanningPipeline {
   private task?: ComposedTenantProcessTask;
   private channel?: ComposedTenantProcessChannel;
   private streamState?: ChannelStateReader;
+  private streamStatePlanningContract?: StreamStatePlanningContract;
   private channelContext?: ChannelContext;
   private channelSelection?: ChannelSTOSelection;
   private sto?: ComposedTenantProcessSto;
@@ -96,19 +107,26 @@ export class TenantProcessPlanningPipeline {
 
   public async loadStreamState(): Promise<void> {
     const task = this.require(this.task, 'Task must be resolved before loading StreamState.');
-
-    // TODO: Replace StateDefinition defaults with the latest authoritative
-    // StreamState loaded through the owning StreamState service boundary.
     const defaults = task.stateDefinition.defaults;
     if (!defaults) {
       throw new Error(
-        `Task ${this.input.queueItem.taskRef} references a StateDefinition without defaults for the temporary POC fallback.`,
+        `Task ${this.input.queueItem.taskRef} references a StateDefinition without defaults for initial StreamState creation.`,
       );
     }
 
+    // For the current POC, each runtime Task owns one StreamState stream and
+    // the runtime Task UUID is its stable stream key. StateDefinition defaults
+    // are used only to seed a missing authoritative stream; subsequent plans
+    // always read the persisted StreamState through the owning boundary.
+    this.streamStatePlanningContract = await this.input.streamStateProvider.load({
+      streamKey: this.input.queueItem.sourceTaskId,
+      initialState: defaults,
+    });
+
+    const snapshot = this.cloneSnapshot(this.streamStatePlanningContract.resolvedState.state);
     this.streamState = {
-      read: (path: string) => defaults[path],
-      snapshot: () => ({ ...defaults }),
+      read: (path: string) => this.readSnapshotPath(snapshot, path),
+      snapshot: () => this.cloneSnapshot(snapshot),
     };
   }
 
@@ -190,8 +208,49 @@ export class TenantProcessPlanningPipeline {
       executionId: randomUUID(),
       requestId: randomUUID(),
       workType: input.workType,
+      planningEvidence: this.createPlanningEvidence(),
       reason: selection.reason,
     };
+  }
+
+  private createPlanningEvidence(): StreamStatePlanningEvidence {
+    const contract = this.require(
+      this.streamStatePlanningContract,
+      'StreamState planning contract is unavailable.',
+    );
+
+    return {
+      streamKey: contract.streamKey,
+      planningContractId: contract.planningContractId,
+      authoritativeVersion: contract.resolvedState.authoritativeVersion,
+      effectiveVersion: contract.resolvedState.effectiveVersion,
+      stateSnapshot: this.cloneSnapshot(contract.resolvedState.state),
+      readablePaths: contract.readablePaths,
+      writablePaths: contract.writablePaths,
+      expectedChanges: contract.expectedChanges,
+      dependencyBlocks: contract.dependencyBlocks,
+      capturedAt: contract.createdAt,
+    };
+  }
+
+  private readSnapshotPath(snapshot: Record<string, unknown>, path: string): unknown {
+    if (Object.prototype.hasOwnProperty.call(snapshot, path)) {
+      return snapshot[path];
+    }
+
+    const segments = path.split('.').filter(Boolean);
+    let cursor: unknown = snapshot;
+    for (const segment of segments) {
+      if (typeof cursor !== 'object' || cursor === null || Array.isArray(cursor)) {
+        return undefined;
+      }
+      cursor = (cursor as Record<string, unknown>)[segment];
+    }
+    return cursor;
+  }
+
+  private cloneSnapshot<T extends Record<string, unknown>>(snapshot: T): T {
+    return JSON.parse(JSON.stringify(snapshot)) as T;
   }
 
   private require<T>(value: T | undefined, message: string): T {

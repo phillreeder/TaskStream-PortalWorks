@@ -13,6 +13,8 @@ import { TenantProcessLoadParameterStore } from '../../../infrastructure/tenant-
 import { fileURLToPath } from 'node:url';
 import { SqliteTaskStorageGateway } from '../../../infrastructure/task-storage/SqliteTaskStorageGateway.js';
 import { TaskStorageExecutionWorkPublisher } from '../../../infrastructure/execution/TaskStorageExecutionWorkPublisher.js';
+import { SqliteStreamStateStore } from '../../../infrastructure/state/SqliteStreamStateStore.js';
+import { StreamStatePlanningProvider } from '../../../infrastructure/state/StreamStatePlanningProvider.js';
 
 async function startApi(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'taskstream-task-api-'));
@@ -24,10 +26,16 @@ async function startApi(t: TestContext) {
     isTenantProcessRegistered: (tenantProcessId) => tenantProcessId === 'TaskStream/Test1',
   });
   const traceAdapter = new SqlSystemTraceAdapter(databasePath);
+  const streamStateStore = new SqliteStreamStateStore(databasePath);
+  const streamStateProvider = new StreamStatePlanningProvider(
+    streamStateStore,
+    new StreamStateModule(streamStateStore),
+  );
   const traceRecorder = new SystemTraceRecorder({ adapter: traceAdapter });
   const traceRepository = new SqlSystemTraceQueryRepository(databasePath);
   t.after(() => gateway.close());
   t.after(() => traceAdapter.close());
+  t.after(() => streamStateStore.close());
   t.after(() => traceRepository.close());
   const server = createTaskApi(gateway, { traceRecorder, traceRepository });
   t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
@@ -35,7 +43,7 @@ async function startApi(t: TestContext) {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   assert.ok(address && typeof address !== 'string');
-  return { baseUrl: `http://127.0.0.1:${address.port}`, gateway, traceRecorder, traceRepository };
+  return { baseUrl: `http://127.0.0.1:${address.port}`, gateway, traceRecorder, traceRepository, streamStateProvider };
 }
 
 test('API creates, lists, and retrieves a stored task through /api routes', async (t) => {
@@ -70,7 +78,7 @@ test('API creates, lists, and retrieves a stored task through /api routes', asyn
 });
 
 test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle through inspection APIs', async (t) => {
-  const { baseUrl, gateway, traceRecorder } = await startApi(t);
+  const { baseUrl, gateway, traceRecorder, streamStateProvider } = await startApi(t);
   const createResponse = await fetch(`${baseUrl}/api/tasks`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -81,7 +89,15 @@ test('[tickets: POC-EVENT-WORKER-001] inspection API exposes the POC lifecycle t
   const explorer = new TenantProcessExplorer(fileURLToPath(new URL('../../../../Tenants/', import.meta.url)), parameters);
   await explorer.discover();
   const loader = new TenantProcessLoader(parameters);
-  const planned = await new PlannerWorker('api-test-worker', gateway, new TaskStorageExecutionWorkPublisher(gateway), explorer, loader, traceRecorder).runOnce();
+  const planned = await new PlannerWorker(
+    'api-test-worker',
+    gateway,
+    new TaskStorageExecutionWorkPublisher(gateway),
+    explorer,
+    loader,
+    streamStateProvider,
+    traceRecorder,
+  ).runOnce();
   assert.equal(planned?.status, 'completed');
 
   const healthResponse = await fetch(`${baseUrl}/api/health`);
