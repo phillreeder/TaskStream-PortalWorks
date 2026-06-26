@@ -22,7 +22,8 @@ test('flat command watcher executes when the command file changes', async () => 
     input: { sourceId: 'source-1' },
     initialState: {
       status: 'pending',
-      workEntryId: { $artifact: { ref: './artifacts/work-entry.json' } },
+      workEntryRef: './artifacts/work-entry.json',
+      workEntryId: '',
     },
   });
   const commandPath = join(root, 'command.json');

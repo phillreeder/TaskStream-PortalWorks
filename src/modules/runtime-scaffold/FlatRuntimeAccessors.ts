@@ -6,12 +6,13 @@ import type {
   FlowUnitAccessor,
   FlowUnitRecord,
 } from '../../domain/tenantProcess/index.js';
-import type { JsonObject } from '../../domain/tenantProcess/types.js';
+import type { JsonObject, JsonValue } from '../../domain/tenantProcess/types.js';
 import {
   FlatRuntimeFileStore,
   type FlatRuntimeStoredArtifact,
   type FlatRuntimeStoredUnit,
 } from './FlatRuntimeStore.js';
+import { resolveFlatRuntimeArtifactReference } from './FlatRuntimeArtifactResolver.js';
 
 export interface FlatRuntimeSession {
   readonly runId: string;
@@ -39,8 +40,9 @@ export function createFlatRuntimeAccessors(input: {
   readonly store: FlatRuntimeFileStore;
   readonly session: FlatRuntimeSession;
   readonly trace: FlatRuntimeTraceWriter;
+  readonly artifactBasePath: string;
 }): FlatRuntimeAccessors {
-  const { store, session, trace } = input;
+  const { store, session, trace, artifactBasePath } = input;
 
   const unit: FlowUnitAccessor = {
     create: async ({ type, data }) => {
@@ -95,27 +97,37 @@ export function createFlatRuntimeAccessors(input: {
     },
   };
 
+  const saveArtifact = async (input: {
+    readonly name: string;
+    readonly content: JsonValue | string;
+    readonly metadata?: JsonObject;
+  }) => {
+    const record: FlatRuntimeStoredArtifact = {
+      artifactId: randomUUID(),
+      name: input.name,
+      content: input.content,
+      ...(input.metadata ? { metadata: input.metadata } : {}),
+      runId: session.runId,
+      cycleId: session.cycleId,
+      ...(session.currentStreamId ? { streamId: session.currentStreamId } : {}),
+      createdAt: new Date().toISOString(),
+    };
+    session.artifacts.set(record.artifactId, record);
+    await store.saveArtifact(record);
+    await trace('accessor', 'artifact.created', {
+      artifactId: record.artifactId,
+      name: record.name,
+      streamId: session.currentStreamId,
+    });
+    return { status: 'succeeded' as const, value: toFlowArtifact(record) };
+  };
+
   const artifact: FlowArtifactAccessor = {
-    save: async ({ name, content, metadata }) => {
-      const record: FlatRuntimeStoredArtifact = {
-        artifactId: randomUUID(),
-        name,
-        content,
-        ...(metadata ? { metadata } : {}),
-        runId: session.runId,
-        cycleId: session.cycleId,
-        ...(session.currentStreamId ? { streamId: session.currentStreamId } : {}),
-        createdAt: new Date().toISOString(),
-      };
-      session.artifacts.set(record.artifactId, record);
-      await store.saveArtifact(record);
-      await trace('accessor', 'artifact.created', {
-        artifactId: record.artifactId,
-        name: record.name,
-        streamId: session.currentStreamId,
-      });
-      return { status: 'succeeded', value: toFlowArtifact(record) };
+    resolve: async (reference) => {
+      const resolved = await resolveFlatRuntimeArtifactReference(reference, artifactBasePath);
+      return saveArtifact(resolved);
     },
+    save: saveArtifact,
     get: async ({ artifactId }) => ({
       status: 'succeeded',
       value: session.artifacts.has(artifactId)

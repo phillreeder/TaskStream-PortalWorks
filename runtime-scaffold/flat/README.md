@@ -10,17 +10,30 @@ The watcher runs immediately, then runs again whenever `command.json` is touched
 The command file selects the active config. The config loads the canonical TenantProcess module,
 provides Task input and initial state, and writes each generated Run under `runtime-data/runs/`.
 
-An initial-state artifact marker has this shape:
+RuntimeScaffold does not inspect or rewrite artifact references inside initial state. Initial state is
+passed to activation and Stream execution unchanged. A Flow resolves a reference explicitly:
 
-```json
-{
-  "$artifact": {
-    "ref": "../artifacts/work-entry.json",
-    "format": "json",
-    "select": "artifactId"
-  }
+```ts
+const artifactRef = ctx.state.get({ path: ['workEntryRef'] });
+if (typeof artifactRef !== 'string' || artifactRef.length === 0) {
+  return ctx.fail({ reason: 'workEntryRef is required' });
 }
+
+const artifact = await ctx.artifact.resolve({
+  ref: artifactRef,
+  format: 'json',
+});
+
+if (artifact.status !== 'succeeded') {
+  return ctx.fail({ reason: artifact.reason });
+}
+
+ctx.change.set({
+  path: ['workEntryId'],
+  value: artifact.value.artifactId,
+});
 ```
 
-The source is copied into the Run artifact store before activation. The marker is replaced with the
-new runtime `artifactId`. `select` may also be `record` or `content`.
+Relative references are resolved from the active config file's directory. Resolution copies the
+source into the Run artifact store and returns its runtime artifact record. The Flow decides when to
+resolve it and how the resulting artifact ID affects state.

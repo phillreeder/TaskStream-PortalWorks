@@ -5,7 +5,6 @@ import type {
   ComposedTenantProcessTask,
   FlowResult,
 } from '../../domain/tenantProcess/index.js';
-import { resolveFlatRuntimeInitialStateArtifacts } from './FlatRuntimeArtifactResolver.js';
 import {
   createFlatRuntimeAccessors,
   type FlatRuntimeSession,
@@ -82,12 +81,13 @@ export class FlatRuntimePathway {
       event,
       ...(data === undefined ? {} : { data }),
     });
-    const accessors = createFlatRuntimeAccessors({ store, session, trace });
-    const initialState = await resolveFlatRuntimeInitialStateArtifacts({
-      initialState: cloneRecord(input.initialState ?? task.stateDefinition.defaults),
-      basePath: input.artifactBasePath ?? process.cwd(),
-      artifact: accessors.artifact,
+    const accessors = createFlatRuntimeAccessors({
+      store,
+      session,
+      trace,
+      artifactBasePath: input.artifactBasePath ?? process.cwd(),
     });
+    const initialState = cloneRecord(input.initialState ?? task.stateDefinition.defaults);
 
     let runRecord: FlatRuntimeRunRecord = {
       runId,

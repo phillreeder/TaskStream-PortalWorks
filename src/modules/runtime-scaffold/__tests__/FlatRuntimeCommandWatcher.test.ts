@@ -24,18 +24,14 @@ function flatConfig(runtimeRoot: string, runId: string) {
     input: { sourceId: 'source-1' },
     initialState: {
       status: 'pending',
-      workEntryId: {
-        $artifact: {
-          ref: './artifacts/work-entry.json',
-          format: 'json',
-        },
-      },
+      workEntryRef: './artifacts/work-entry.json',
+      workEntryId: '',
     },
   };
 }
 
 describe('RuntimeScaffold flat command pathway', () => {
-  it('loads the active config from the command file and seeds initial-state artifacts into the run store', async () => {
+  it('passes initial state through unchanged and lets the first Flow resolve its artifact reference', async () => {
     const root = await mkdtemp(join(tmpdir(), 'taskstream-flat-command-'));
     await mkdir(join(root, 'artifacts'), { recursive: true });
     await writeJson(join(root, 'artifacts', 'work-entry.json'), { entry: 'from-artifact' });
@@ -57,12 +53,16 @@ describe('RuntimeScaffold flat command pathway', () => {
       result.streamResults[0]!.streamId,
       'state.json',
     ));
-    expect(state).toMatchObject({ status: 'done' });
+    expect(state).toMatchObject({
+      status: 'done',
+      workEntryRef: './artifacts/work-entry.json',
+    });
     expect(state.workEntryId).toMatch(/^[0-9a-f-]{36}$/);
 
     const artifact = await readJson(join(result.runDirectory, 'artifacts', `${state.workEntryId}.json`));
     expect(artifact).toMatchObject({
       artifactId: state.workEntryId,
+      streamId: result.streamResults[0]!.streamId,
       name: 'work-entry.json',
       content: { entry: 'from-artifact' },
       metadata: {

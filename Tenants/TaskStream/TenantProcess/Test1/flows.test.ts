@@ -6,6 +6,7 @@ const unavailable = async () => ({ status: 'unavailable' as const, reason: 'not 
 function createExampleAccessors() {
   return {
     artifact: {
+      resolve: vi.fn(unavailable),
       save: vi.fn(unavailable),
       get: vi.fn(unavailable),
       list: vi.fn(unavailable),

@@ -2,6 +2,8 @@ export type {
   FlowAccessorResult,
   FlowArtifactAccessor,
   FlowArtifactRecord,
+  FlowArtifactReferenceFormat,
+  FlowArtifactResolveInput,
   FlowCredentialRecord,
   FlowCredentialsAccessor,
   FlowHttpAccessor,

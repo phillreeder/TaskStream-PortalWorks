@@ -5,7 +5,7 @@ export {
   buildRuntimeScaffoldTraceSummary,
 } from './ExecutionResultBuilder.js';
 export { FlatRuntimeFileStore } from './FlatRuntimeStore.js';
-export { resolveFlatRuntimeInitialStateArtifacts } from './FlatRuntimeArtifactResolver.js';
+export { resolveFlatRuntimeArtifactReference } from './FlatRuntimeArtifactResolver.js';
 export { FlatRuntimeCommandWatcher } from './FlatRuntimeCommandWatcher.js';
 export { FlatRuntimePathway } from './FlatRuntimePathway.js';
 export { RuntimeScaffold } from './RuntimeScaffold.js';
@@ -100,4 +100,4 @@ export type {
   ScaffoldFlowContextExecutionInput,
 } from './ScaffoldFlowContext.js';
 
-export type { FlatRuntimeArtifactMarker, FlatRuntimeArtifactSelection } from './FlatRuntimeArtifactResolver.js';
+export type { FlatRuntimeResolvedArtifact } from './FlatRuntimeArtifactResolver.js';

@@ -17,12 +17,7 @@
     "status": "pending",
     "sourceEventId": "",
     "sourceQueueItemId": "",
-    "workEntryId": {
-      "$artifact": {
-        "ref": "../artifacts/work-entry.json",
-        "format": "json"
-      }
-    },
+    "workEntryId": "",
     "lastError": ""
   }
 }

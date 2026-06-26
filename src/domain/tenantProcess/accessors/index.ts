@@ -1,5 +1,10 @@
 export type { FlowAccessorResult } from './result.js';
-export type { FlowArtifactAccessor, FlowArtifactRecord } from './artifact.js';
+export type {
+  FlowArtifactAccessor,
+  FlowArtifactRecord,
+  FlowArtifactReferenceFormat,
+  FlowArtifactResolveInput,
+} from './artifact.js';
 export type { FlowUnitAccessor, FlowUnitRecord } from './unit.js';
 export type {
   FlowHttpAccessor,

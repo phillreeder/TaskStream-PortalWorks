@@ -1,4 +1,0 @@
-{
-  "kind": "flat-scaffold-source",
-  "message": "Initial state can seed a runtime artifact through the artifact resolver."
-}
