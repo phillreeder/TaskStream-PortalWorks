@@ -1,3 +1,4 @@
+import { FlatRuntimePathway, type FlatRuntimePathwayInput, type FlatRuntimePathwayResult } from './FlatRuntimePathway.js';
 import { RuntimeScaffoldExecutor } from './RuntimeScaffoldExecutor.js';
 import { ScaffoldExecutionLoader } from './ScaffoldExecutionLoader.js';
 import { TenantProcessLoader } from './TenantProcessLoader.js';
@@ -20,6 +21,7 @@ export interface RuntimeScaffoldOptions {
 export class RuntimeScaffold {
   private readonly executionLoader: ScaffoldExecutionLoader;
   private readonly executor: RuntimeScaffoldExecutor;
+  private readonly flatRuntimePathway = new FlatRuntimePathway();
 
   constructor(options: RuntimeScaffoldOptions = {}) {
     this.executionLoader = options.executionLoader ?? new ScaffoldExecutionLoader({
@@ -41,6 +43,10 @@ export class RuntimeScaffold {
 
   loadFromControlFile(controlPath: string): Promise<RuntimeScaffoldLoadResult> {
     return this.executionLoader.loadFromControlFile(controlPath);
+  }
+
+  executeFlat(input: FlatRuntimePathwayInput): Promise<FlatRuntimePathwayResult> {
+    return this.flatRuntimePathway.run(input);
   }
 
   async executeFromControlFile(controlPath: string): Promise<RuntimeScaffoldExecutionResult> {

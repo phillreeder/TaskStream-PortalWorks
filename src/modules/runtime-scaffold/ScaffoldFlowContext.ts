@@ -4,7 +4,16 @@ import type {
   StatePathInput,
   StatePathValueInput,
 } from '../../definitionRuntime/state/index.js';
-import type { FlowChangeWriter, FlowContext } from '../../domain/tenantProcess/index.js';
+import type {
+  FlowArtifactAccessor,
+  FlowChangeWriter,
+  FlowContext,
+  FlowCredentialsAccessor,
+  FlowExecutionBinding,
+  FlowHttpAccessor,
+  FlowLoggerAccessor,
+  FlowUnitAccessor,
+} from '../../domain/tenantProcess/index.js';
 import type { RuntimeScaffoldFlowSelection } from './RuntimeScaffoldPipelineTypes.js';
 import { loadScaffoldArtifactAccessor } from './flow-context/accessors/artifact.js';
 import { loadScaffoldCredentialsAccessor } from './flow-context/accessors/credentials.js';
@@ -12,36 +21,68 @@ import { loadScaffoldHttpAccessor } from './flow-context/accessors/http.js';
 import { loadScaffoldLoggerAccessor } from './flow-context/accessors/logger.js';
 import { loadScaffoldUnitAccessor } from './flow-context/accessors/unit.js';
 
+export interface ScaffoldFlowContextAccessors {
+  readonly artifact?: FlowArtifactAccessor;
+  readonly credentials?: FlowCredentialsAccessor;
+  readonly logger?: FlowLoggerAccessor;
+  readonly unit?: FlowUnitAccessor;
+  readonly http?: FlowHttpAccessor;
+}
+
+export interface ScaffoldFlowContextExecutionInput {
+  readonly taskRef: string;
+  readonly binding: FlowExecutionBinding;
+  readonly container: StateContainer;
+  readonly accessors?: ScaffoldFlowContextAccessors;
+}
+
 export function createScaffoldFlowContext(
   selection: RuntimeScaffoldFlowSelection,
   container: StateContainer,
 ): FlowContext {
-  const stateReader = new StateReader({ container });
-  const stateWriter = new StateWriter({ container });
+  return createScaffoldFlowContextForExecution({
+    taskRef: selection.task.taskId,
+    binding: {
+      kind: 'stream-flow',
+      stoRef: selection.sto.stoId,
+      flowRef: selection.flow.flowId,
+    },
+    container,
+  });
+}
+
+export function createScaffoldFlowContextForExecution(
+  input: ScaffoldFlowContextExecutionInput,
+): FlowContext {
+  const stateReader = new StateReader({ container: input.container });
+  const stateWriter = new StateWriter({ container: input.container });
   const probeResults = new Map<string, boolean>();
   const change = {
-    set(input: StatePathValueInput, options?: Parameters<FlowChangeWriter['set']>[1]) {
-      return stateWriter.set_path(input, options as any) as ReturnType<FlowChangeWriter['set']>;
+    set(value: StatePathValueInput, options?: Parameters<FlowChangeWriter['set']>[1]) {
+      return stateWriter.set_path(value, options as any) as ReturnType<FlowChangeWriter['set']>;
     },
   } as FlowChangeWriter;
 
+  const accessors = input.accessors ?? {};
+
   return {
-    taskRef: selection.task.taskId,
-    stoRef: selection.sto.stoId,
+    taskRef: input.taskRef,
+    ...(input.binding.kind === 'stream-flow' ? { stoRef: input.binding.stoRef } : {}),
+    execution: input.binding,
     state: {
-      get(input: StatePathInput) {
-        return stateReader.get(input);
+      get(value: StatePathInput) {
+        return stateReader.get(value);
       },
       snapshot() {
-        return container.snapshot();
+        return input.container.snapshot();
       },
     },
     change,
-    artifact: loadScaffoldArtifactAccessor(),
-    credentials: loadScaffoldCredentialsAccessor(),
-    logger: loadScaffoldLoggerAccessor(),
-    unit: loadScaffoldUnitAccessor(),
-    http: loadScaffoldHttpAccessor(),
+    artifact: accessors.artifact ?? loadScaffoldArtifactAccessor(),
+    credentials: accessors.credentials ?? loadScaffoldCredentialsAccessor(),
+    logger: accessors.logger ?? loadScaffoldLoggerAccessor(),
+    unit: accessors.unit ?? loadScaffoldUnitAccessor(),
+    http: accessors.http ?? loadScaffoldHttpAccessor(),
     probe(name, evaluate) {
       const cached = probeResults.get(name);
       if (cached !== undefined) {

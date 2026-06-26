@@ -4,6 +4,8 @@ export {
   buildRuntimeScaffoldOutputMaterial,
   buildRuntimeScaffoldTraceSummary,
 } from './ExecutionResultBuilder.js';
+export { FlatRuntimeFileStore } from './FlatRuntimeStore.js';
+export { FlatRuntimePathway } from './FlatRuntimePathway.js';
 export { RuntimeScaffold } from './RuntimeScaffold.js';
 export { RuntimeScaffoldExecutor } from './RuntimeScaffoldExecutor.js';
 export {
@@ -20,7 +22,7 @@ export { RuntimeScaffoldPipelineTracer } from './RuntimeScaffoldPipelineTracer.j
 export { resolveRuntimeScaffoldFlowSelection, resolveRuntimeScaffoldTask } from './RuntimeScaffoldResolver.js';
 export { ScaffoldFlowRunner } from './ScaffoldFlowRunner.js';
 export { ScaffoldDescriptorNormalizer } from './ScaffoldDescriptorNormalizer.js';
-export { createScaffoldFlowContext } from './ScaffoldFlowContext.js';
+export { createScaffoldFlowContext, createScaffoldFlowContextForExecution } from './ScaffoldFlowContext.js';
 export { NodeRuntimeScaffoldFileSystem, ScaffoldExecutionLoader } from './ScaffoldExecutionLoader.js';
 export { SourceStateLoader } from './SourceStateLoader.js';
 export { adaptTenantProcessForRuntimeScaffold } from './TenantProcessRuntimeAdapter.js';
@@ -74,3 +76,22 @@ export type {
   RuntimeScaffoldValidationSummary,
   ScaffoldControlFile,
 } from './types.js';
+
+export type {
+  FlatRuntimeCycleRecord,
+  FlatRuntimeRunRecord,
+  FlatRuntimeStatus,
+  FlatRuntimeStoredArtifact,
+  FlatRuntimeStoredUnit,
+  FlatRuntimeStreamRecord,
+  FlatRuntimeTraceRecord,
+} from './FlatRuntimeStore.js';
+export type {
+  FlatRuntimePathwayInput,
+  FlatRuntimePathwayResult,
+} from './FlatRuntimePathway.js';
+export type { FlatRuntimeStreamResult } from './FlatRuntimeStreamRunner.js';
+export type {
+  ScaffoldFlowContextAccessors,
+  ScaffoldFlowContextExecutionInput,
+} from './ScaffoldFlowContext.js';

@@ -34,6 +34,7 @@ export type {
   FlowChangeWriter,
   FlowContext,
   FlowExecutable,
+  FlowExecutionBinding,
   FlowExecutionContext,
   FlowExecutionResult,
   FlowInput,

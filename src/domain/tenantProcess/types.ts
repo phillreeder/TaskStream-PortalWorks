@@ -206,9 +206,23 @@ export type FlowRetryOptions =
       readonly allowFastRetry: true;
     };
 
+export type FlowExecutionBinding =
+  | {
+      readonly kind: 'task-activation';
+      readonly flowRef: FlowRef;
+    }
+  | {
+      readonly kind: 'stream-flow';
+      readonly flowRef: FlowRef;
+      readonly stoRef: STORef;
+    };
+
 export interface FlowContext<TState extends StateSnapshot = StateSnapshot> {
   readonly taskRef: TaskRef;
-  readonly stoRef: STORef;
+  /** Present only when the Flow was selected through an STO. */
+  readonly stoRef?: STORef;
+  /** Explicit execution binding for runtimes that distinguish activation from Stream Flow execution. */
+  readonly execution?: FlowExecutionBinding;
   readonly state: FlowStateReader<TState>;
   readonly change: FlowChangeWriter;
   readonly artifact: FlowArtifactAccessor;
