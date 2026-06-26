@@ -22,10 +22,14 @@ export class ScaffoldDescriptorNormalizer {
     const id = expectString(descriptorObject.id ?? descriptorObject.runId, 'id', sourcePath);
     const mode = expectMode(descriptorObject.mode, sourcePath);
     const tenantProcessRef = normalizeReference(descriptorObject.tenantProcessRef, 'tenantProcessRef', sourcePath);
-    const taskId = expectString(descriptorObject.taskId ?? getObject(descriptorObject.execution)?.taskId, 'taskId', sourcePath);
-    const sourceStateRef = normalizeStateReference(descriptorObject.sourceStateRef, sourcePath);
-    const execution = normalizeExecution(descriptorObject.execution, sourcePath);
-    const output = normalizeOutput(descriptorObject.output, sourcePath);
+    const taskId = expectString(
+      descriptorObject.taskRef ?? descriptorObject.taskId ?? getObject(descriptorObject.execution)?.taskId,
+      'taskId',
+      sourcePath,
+    );
+    const sourceStateRef = normalizeDescriptorStateReference(descriptorObject, sourcePath);
+    const execution = normalizeDescriptorExecution(descriptorObject, sourcePath);
+    const output = normalizeDescriptorOutput(descriptorObject, sourcePath);
 
     if (mode === 'flowOnly' && execution?.channelId) {
       warnings.push('flowOnly descriptor includes execution.channelId; loader preserved it without resolving Channel semantics.');
@@ -64,6 +68,16 @@ function normalizeReference(rawValue: unknown, fieldName: string, sourcePath?: s
   };
 }
 
+function normalizeDescriptorStateReference(
+  descriptor: JsonObject,
+  sourcePath?: string,
+): RuntimeScaffoldStateReference {
+  if ('initialState' in descriptor) {
+    return { kind: 'inline', value: descriptor.initialState };
+  }
+  return normalizeStateReference(descriptor.initialStateRef ?? descriptor.sourceStateRef, sourcePath);
+}
+
 function normalizeStateReference(rawValue: unknown, sourcePath?: string): RuntimeScaffoldStateReference {
   const value = expectObject(rawValue, 'sourceStateRef', sourcePath);
   const kind = expectString(value.kind, 'sourceStateRef.kind', sourcePath);
@@ -85,6 +99,35 @@ function normalizeStateReference(rawValue: unknown, sourcePath?: string): Runtim
   return {
     kind,
     ref: expectString(value.ref, 'sourceStateRef.ref', sourcePath),
+  };
+}
+
+
+function normalizeDescriptorExecution(
+  descriptor: JsonObject,
+  sourcePath?: string,
+): RuntimeScaffoldExecutionTarget | undefined {
+  const normalized = normalizeExecution(descriptor.execution, sourcePath);
+  if (!('input' in descriptor)) {
+    return normalized;
+  }
+  return {
+    ...(normalized ?? {}),
+    input: descriptor.input,
+  };
+}
+
+function normalizeDescriptorOutput(
+  descriptor: JsonObject,
+  sourcePath?: string,
+): RuntimeScaffoldOutputOptions | undefined {
+  const normalized = normalizeOutput(descriptor.output, sourcePath);
+  if (descriptor.runtimeRoot === undefined) {
+    return normalized;
+  }
+  return {
+    ...(normalized ?? {}),
+    outputDir: expectString(descriptor.runtimeRoot, 'runtimeRoot', sourcePath),
   };
 }
 
@@ -124,10 +167,10 @@ function normalizeOutput(rawValue: unknown, sourcePath?: string): RuntimeScaffol
 }
 
 function expectMode(value: unknown, sourcePath?: string): RuntimeScaffoldExecutionMode {
-  if (value === 'flowOnly' || value === 'channelFlow') {
+  if (value === 'flowOnly' || value === 'channelFlow' || value === 'flatTask') {
     return value;
   }
-  throw invalidDescriptor('mode must be flowOnly or channelFlow', sourcePath);
+  throw invalidDescriptor('mode must be flowOnly, channelFlow, or flatTask', sourcePath);
 }
 
 function expectObject(value: unknown, fieldName: string, sourcePath?: string): JsonObject {

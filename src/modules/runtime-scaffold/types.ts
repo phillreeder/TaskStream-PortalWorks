@@ -3,7 +3,7 @@ export type JsonObject = { readonly [key: string]: JsonValue };
 export type JsonArray = readonly JsonValue[];
 export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
 
-export type RuntimeScaffoldExecutionMode = 'flowOnly' | 'channelFlow';
+export type RuntimeScaffoldExecutionMode = 'flowOnly' | 'channelFlow' | 'flatTask';
 export type RuntimeScaffoldRefKind = 'file' | 'module' | 'fixture';
 export type RuntimeScaffoldStateRefKind = 'file' | 'inline' | 'fixture';
 export type RuntimeScaffoldRunFileFormat = 'json';

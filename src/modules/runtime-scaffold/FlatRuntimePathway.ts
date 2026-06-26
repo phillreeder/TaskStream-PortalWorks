@@ -5,6 +5,7 @@ import type {
   ComposedTenantProcessTask,
   FlowResult,
 } from '../../domain/tenantProcess/index.js';
+import { resolveFlatRuntimeInitialStateArtifacts } from './FlatRuntimeArtifactResolver.js';
 import {
   createFlatRuntimeAccessors,
   type FlatRuntimeSession,
@@ -29,6 +30,7 @@ export interface FlatRuntimePathwayInput {
   readonly taskRef: string;
   readonly input?: Record<string, unknown>;
   readonly initialState?: Record<string, unknown>;
+  readonly artifactBasePath?: string;
   readonly runtimeRoot: string;
   readonly runId?: string;
   readonly maxStepsPerStream?: number;
@@ -81,6 +83,11 @@ export class FlatRuntimePathway {
       ...(data === undefined ? {} : { data }),
     });
     const accessors = createFlatRuntimeAccessors({ store, session, trace });
+    const initialState = await resolveFlatRuntimeInitialStateArtifacts({
+      initialState: cloneRecord(input.initialState ?? task.stateDefinition.defaults),
+      basePath: input.artifactBasePath ?? process.cwd(),
+      artifact: accessors.artifact,
+    });
 
     let runRecord: FlatRuntimeRunRecord = {
       runId,
@@ -112,7 +119,7 @@ export class FlatRuntimePathway {
       createScaffoldFlowContextForExecution({
         taskRef: input.taskRef,
         binding: { kind: 'task-activation', flowRef: task.activationFlow.flowId },
-        container: createStateContainer(task, input.initialState),
+        container: createStateContainer(task, initialState),
         accessors,
       }),
       session.input as Record<string, any>,
@@ -141,7 +148,6 @@ export class FlatRuntimePathway {
     }
 
     const streams = units.map((unit) => createStreamRecord(session, unit));
-    const initialState = cloneRecord(input.initialState ?? task.stateDefinition.defaults);
     for (const stream of streams) {
       await store.saveStream(stream);
       await store.saveStreamState(runId, stream.streamId, initialState);

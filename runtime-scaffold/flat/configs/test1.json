@@ -1,0 +1,28 @@
+{
+  "id": "taskstream-test1-flat",
+  "mode": "flatTask",
+  "tenantProcessRef": {
+    "kind": "module",
+    "ref": "../../../Tenants/TaskStream/TenantProcess/Test1/index.ts"
+  },
+  "taskRef": "processWork",
+  "runtimeRoot": "../runtime-data",
+  "input": {
+    "sourceTaskId": "task-flat-1",
+    "sourceTaskName": "TaskStream flat Scaffold command",
+    "sourceEventId": "event-flat-1",
+    "sourceQueueItemId": "queue-flat-1"
+  },
+  "initialState": {
+    "status": "pending",
+    "sourceEventId": "",
+    "sourceQueueItemId": "",
+    "workEntryId": {
+      "$artifact": {
+        "ref": "../artifacts/work-entry.json",
+        "format": "json"
+      }
+    },
+    "lastError": ""
+  }
+}

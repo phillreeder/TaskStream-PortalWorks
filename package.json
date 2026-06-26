@@ -50,7 +50,8 @@
     "poc:test": "node --import tsx --test src/**/*.node.test.ts",
     "poc:dashboard:dev": "npm --prefix services/web-dashboard run dev",
     "poc:dashboard:build": "npm --prefix services/web-dashboard run build",
-    "poc:dev": "concurrently -n api,planner,dashboard -c auto \"npm:poc:ieb-beta-api\" \"npm:planner:dev\" \"npm:poc:dashboard:dev\""
+    "poc:dev": "concurrently -n api,planner,dashboard -c auto \"npm:poc:ieb-beta-api\" \"npm:planner:dev\" \"npm:poc:dashboard:dev\"",
+    "scaffold:flat:watch": "tsx src/modules/runtime-scaffold/flat-watch.ts"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.2.0",

@@ -109,6 +109,11 @@ export function createFlatRuntimeAccessors(input: {
       };
       session.artifacts.set(record.artifactId, record);
       await store.saveArtifact(record);
+      await trace('accessor', 'artifact.created', {
+        artifactId: record.artifactId,
+        name: record.name,
+        streamId: session.currentStreamId,
+      });
       return { status: 'succeeded', value: toFlowArtifact(record) };
     },
     get: async ({ artifactId }) => ({

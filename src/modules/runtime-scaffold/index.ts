@@ -5,6 +5,8 @@ export {
   buildRuntimeScaffoldTraceSummary,
 } from './ExecutionResultBuilder.js';
 export { FlatRuntimeFileStore } from './FlatRuntimeStore.js';
+export { resolveFlatRuntimeInitialStateArtifacts } from './FlatRuntimeArtifactResolver.js';
+export { FlatRuntimeCommandWatcher } from './FlatRuntimeCommandWatcher.js';
 export { FlatRuntimePathway } from './FlatRuntimePathway.js';
 export { RuntimeScaffold } from './RuntimeScaffold.js';
 export { RuntimeScaffoldExecutor } from './RuntimeScaffoldExecutor.js';
@@ -31,6 +33,8 @@ export { TenantProcessLoader } from './TenantProcessLoader.js';
 export { executeRuntimeScaffoldFromControlFile, loadRuntimeScaffoldFromControlFile } from './scaffold.js';
 export { validateRuntimeScaffoldProposedState } from './ProposedStateValidator.js';
 export { prepareRuntimeScaffoldWorkingState } from './WorkingStatePreparer.js';
+export type { FlatRuntimeCommandWatcherOptions } from './FlatRuntimeCommandWatcher.js';
+export type { FlatRuntimeControlExecutionResult, RuntimeScaffoldOptions } from './RuntimeScaffold.js';
 export type { RuntimeScaffoldExecutorOptions } from './RuntimeScaffoldExecutor.js';
 export type { RuntimeScaffoldPipelineDependencies } from './RuntimeScaffoldPipeline.js';
 export type {
@@ -95,3 +99,5 @@ export type {
   ScaffoldFlowContextAccessors,
   ScaffoldFlowContextExecutionInput,
 } from './ScaffoldFlowContext.js';
+
+export type { FlatRuntimeArtifactMarker, FlatRuntimeArtifactSelection } from './FlatRuntimeArtifactResolver.js';
