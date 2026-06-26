@@ -76,11 +76,22 @@ function planningContract(
 }
 
 function fixtureResolution(): TenantProcessResolution {
-  const activationFlow = () => ({ status: 'succeeded' as const });
-  const firstFlow = () => ({ status: 'succeeded' as const });
-  const secondFlow = () => ({ status: 'succeeded' as const });
-  const firstSto = { flow: firstFlow };
-  const secondSto = { flow: secondFlow };
+  const activationFlow = {
+    flowId: 'activateTask',
+    executable: () => ({ status: 'succeeded' as const }),
+  };
+  const firstSto = {
+    flow: {
+      flowId: 'firstFlow',
+      executable: () => ({ status: 'succeeded' as const }),
+    },
+  };
+  const secondSto = {
+    flow: {
+      flowId: 'secondFlow',
+      executable: () => ({ status: 'succeeded' as const }),
+    },
+  };
   const firstChannel = {
     executable: (context: any) => context.selectSto('firstSto', 'first task selected'),
   };
@@ -148,20 +159,35 @@ test('TenantProcessPlanningPipeline resolves a Stream before Channel planning an
     workType: 'process-channel-result',
   });
 
+  assert.equal(dispatch.executionKind, 'stream-flow');
+  if (dispatch.executionKind !== 'stream-flow') assert.fail('Expected Stream Flow dispatch.');
   assert.equal(dispatch.sourceTaskId, 'task-instance-1');
   assert.equal(dispatch.streamId, 'stream-instance-7');
   assert.equal(dispatch.taskRef, 'secondTask');
   assert.equal(dispatch.channelRef, 'secondChannel');
   assert.equal(dispatch.stoRef, 'secondSto');
-  assert.equal(dispatch.flowRef, 'secondSto');
+  assert.equal(dispatch.flowRef, 'secondFlow');
   assert.equal(dispatch.planningEvidence?.streamKey, 'stream-instance-7');
   assert.notEqual(dispatch.planningEvidence?.streamKey, dispatch.sourceTaskId);
 });
 
 test('TenantProcessPlanningPipeline selects the STO from authoritative StreamState and carries its evidence', async () => {
-  const prepareSto = { flow: () => ({ status: 'succeeded' as const }) };
-  const inspectSto = { flow: () => ({ status: 'succeeded' as const }) };
-  const activationFlow = () => ({ status: 'succeeded' as const });
+  const prepareSto = {
+    flow: {
+      flowId: 'prepareWork',
+      executable: () => ({ status: 'succeeded' as const }),
+    },
+  };
+  const inspectSto = {
+    flow: {
+      flowId: 'inspectWork',
+      executable: () => ({ status: 'succeeded' as const }),
+    },
+  };
+  const activationFlow = {
+    flowId: 'activateTask',
+    executable: () => ({ status: 'succeeded' as const }),
+  };
   const channel = {
     executable: (context: any) => context.state.read('status') === 'pending'
       ? context.selectSto('prepareWork', 'state is pending')
@@ -214,6 +240,8 @@ test('TenantProcessPlanningPipeline selects the STO from authoritative StreamSta
     workType: 'process-channel-result',
   });
 
+  assert.equal(dispatch.executionKind, 'stream-flow');
+  if (dispatch.executionKind !== 'stream-flow') assert.fail('Expected Stream Flow dispatch.');
   assert.equal(dispatch.stoRef, 'inspectWork');
   assert.equal(dispatch.reason, 'state has advanced');
   assert.equal(dispatch.planningEvidence?.authoritativeVersion, 7);
@@ -246,11 +274,13 @@ test('TenantProcessPlanningPipeline dispatches Task.activationFlow before any St
   });
 
   assert.equal(stateLoadCount, 0);
+  assert.equal(dispatch.executionKind, 'task-activation');
+  if (dispatch.executionKind !== 'task-activation') assert.fail('Expected Task activation dispatch.');
   assert.equal(dispatch.taskRef, 'secondTask');
-  assert.equal(dispatch.flowRef, 'secondTask.activation');
-  assert.equal(dispatch.channelRef, 'task.activation');
-  assert.equal(dispatch.stoRef, 'task.activation');
-  assert.equal(dispatch.streamId, undefined);
-  assert.equal(dispatch.planningEvidence, undefined);
-  assert.equal(dispatch.flowParams?.sourceTaskId, 'task-instance-1');
+  assert.equal(dispatch.flowRef, 'activateTask');
+  assert.equal('channelRef' in dispatch, false);
+  assert.equal('stoRef' in dispatch, false);
+  assert.equal('streamId' in dispatch, false);
+  assert.equal('planningEvidence' in dispatch, false);
+  assert.equal(dispatch.flowParams.sourceTaskId, 'task-instance-1');
 });

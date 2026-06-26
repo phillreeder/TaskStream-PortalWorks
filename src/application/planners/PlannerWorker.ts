@@ -238,13 +238,14 @@ export class PlannerWorker {
   ): Record<string, string> {
     return {
       ...context,
+      executionKind: dispatch.executionKind,
       taskRef: dispatch.taskRef,
-      channelRef: dispatch.channelRef,
-      stoRef: dispatch.stoRef,
       flowRef: dispatch.flowRef,
       executionId: dispatch.executionId,
-      ...(dispatch.streamId ? { streamId: dispatch.streamId } : {}),
-      ...(dispatch.planningEvidence ? {
+      ...(dispatch.executionKind === 'stream-flow' ? {
+        channelRef: dispatch.channelRef,
+        stoRef: dispatch.stoRef,
+        streamId: dispatch.streamId,
         streamKey: dispatch.planningEvidence.streamKey,
         planningContractId: dispatch.planningEvidence.planningContractId,
         plannedStateVersion: String(dispatch.planningEvidence.effectiveVersion),

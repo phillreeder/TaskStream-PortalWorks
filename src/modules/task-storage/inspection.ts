@@ -218,7 +218,7 @@ export async function listExecutionLogRecords(
         sourceEventId: entry.sourceEventId,
         sourceQueueItemId: entry.sourceQueueItemId,
         tenantProcessId: entry.tenantProcessId,
-        channelId: entry.channelId,
+        channelId: entry.channelId ?? undefined,
         flowId: entry.flowId,
         executionId: entry.executionId,
         workEntryId: entry.id,

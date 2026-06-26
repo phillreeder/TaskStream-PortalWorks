@@ -59,11 +59,14 @@ export type PersistentQueueItem = {
   createdAt: string;
 };
 
+export type ProcessWorkExecutionKind = 'task-activation' | 'stream-flow';
+
 export type CreateProcessWorkEntryInput = {
   sourceEventId: string;
   sourceQueueItemId: string;
   tenantProcessId: string;
-  channelId: string;
+  executionKind: ProcessWorkExecutionKind;
+  channelId: string | null;
   flowId: string;
   executionId: string;
   workType: string;
@@ -76,7 +79,8 @@ export type ProcessWorkEntry = {
   sourceEventId: string;
   sourceQueueItemId: string;
   tenantProcessId: string;
-  channelId: string;
+  executionKind: ProcessWorkExecutionKind;
+  channelId: string | null;
   flowId: string;
   executionId: string;
   workType: string;

@@ -45,15 +45,20 @@ export interface ComposedTenantProcessChannel {
   readonly executable: ChannelExecutable;
 }
 
+export interface ComposedTenantProcessFlow {
+  readonly flowId: string;
+  readonly executable: FlowExecutable;
+}
+
 export interface ComposedTenantProcessSto {
-  readonly flow: FlowExecutable;
+  readonly flow: ComposedTenantProcessFlow;
   readonly inputContracts?: readonly InputContract[];
   readonly resultContracts?: readonly ResultContract[];
   readonly [key: string]: unknown;
 }
 
 export interface ComposedTenantProcessTask {
-  readonly activationFlow: FlowExecutable;
+  readonly activationFlow: ComposedTenantProcessFlow;
   readonly stateDefinition: StateDefinition<FieldDefinitions>;
   readonly channel?: ComposedTenantProcessChannel;
   readonly stos: Readonly<Record<string, ComposedTenantProcessSto>>;
@@ -83,8 +88,15 @@ type ChannelRegistrySource = Readonly<Record<string, { readonly executable: Chan
 type InputContractRegistrySource = Readonly<Record<string, InputContract>>;
 type ResultContractRegistrySource = Readonly<Record<string, ResultContract>>;
 
+export type TenantProcessFlowSource =
+  | FlowExecutable
+  | {
+      readonly flowId?: string;
+      readonly executable: FlowExecutable;
+    };
+
 export interface TenantProcessStoSource {
-  readonly flow: FlowExecutable;
+  readonly flow: TenantProcessFlowSource;
   readonly inputContracts?: readonly InputContract[];
   readonly resultContracts?: readonly ResultContract[];
   readonly [key: string]: unknown;
@@ -93,7 +105,7 @@ export interface TenantProcessStoSource {
 type StoRegistrySource = Readonly<Record<string, TenantProcessStoSource>>;
 
 export interface TenantProcessTaskSource {
-  readonly activationFlow: FlowExecutable;
+  readonly activationFlow: TenantProcessFlowSource;
   readonly stateDefinition: unknown;
   readonly channel?: unknown;
   readonly stos: Readonly<Record<string, unknown>>;
@@ -178,7 +190,7 @@ class TenantProcessBuilder implements TenantProcessComposer {
       this.assertUnique(this.stoRegistry, 'sto', name);
       this.stoRegistry[name] = {
         ...source,
-        flow: defineFlow(source.flow),
+        flow: composeFlow(source.flow, name),
       };
     }
     return this.stoRegistry as Readonly<Record<keyof T, unknown>>;
@@ -190,7 +202,7 @@ class TenantProcessBuilder implements TenantProcessComposer {
       this.assertUnique(this.taskRegistry, 'task', name);
       this.taskRegistry[name] = {
         ...source,
-        activationFlow: defineFlow(source.activationFlow),
+        activationFlow: composeFlow(source.activationFlow, `${name}.activation`),
       };
     }
     return this.taskRegistry as Readonly<Record<keyof T, unknown>>;
@@ -261,6 +273,21 @@ class TenantProcessBuilder implements TenantProcessComposer {
       throw new Error('TenantProcess declarationOrder must contain every declaration kind exactly once');
     }
   }
+}
+
+function composeFlow(source: TenantProcessFlowSource, fallbackFlowId: string): ComposedTenantProcessFlow {
+  if (typeof source === 'function') {
+    return {
+      flowId: fallbackFlowId,
+      executable: defineFlow(source),
+    };
+  }
+
+  const flowId = source.flowId?.trim() || fallbackFlowId;
+  return {
+    flowId,
+    executable: defineFlow(source.executable),
+  };
 }
 
 export const TenantProcess = {

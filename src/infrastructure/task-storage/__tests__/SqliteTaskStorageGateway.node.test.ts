@@ -149,6 +149,7 @@ test('[tickets: POC-EVENT-WORKER-001] materializes one real work entry for a que
     sourceEventId: claimed.sourceEventId,
     sourceQueueItemId: claimed.id,
     tenantProcessId: 'TaskStream/Test1',
+    executionKind: 'stream-flow',
     channelId: 'processWork',
     flowId: 'prepareWork',
     executionId: 'execution-1',
@@ -160,6 +161,7 @@ test('[tickets: POC-EVENT-WORKER-001] materializes one real work entry for a que
     sourceEventId: claimed.sourceEventId,
     sourceQueueItemId: claimed.id,
     tenantProcessId: 'TaskStream/Test1',
+    executionKind: 'stream-flow',
     channelId: 'processWork',
     flowId: 'prepareWork',
     executionId: 'execution-2',
@@ -174,6 +176,7 @@ test('[tickets: POC-EVENT-WORKER-001] materializes one real work entry for a que
   assert.equal(workEntries[0]?.sourceEventId, claimed.sourceEventId);
   assert.equal(workEntries[0]?.sourceQueueItemId, claimed.id);
   assert.equal(workEntries[0]?.tenantProcessId, 'TaskStream/Test1');
+  assert.equal(workEntries[0]?.executionKind, 'stream-flow');
   assert.equal(workEntries[0]?.channelId, 'processWork');
   assert.equal(workEntries[0]?.flowId, 'prepareWork');
   assert.equal(workEntries[0]?.executionId, 'execution-1');
@@ -191,6 +194,7 @@ test('[tickets: POC-EVENT-WORKER-001] reset clears all lifecycle rows and restor
     sourceEventId: claimed.sourceEventId,
     sourceQueueItemId: claimed.id,
     tenantProcessId: 'TaskStream/Test1',
+    executionKind: 'stream-flow',
     channelId: 'processWork',
     flowId: 'prepareWork',
     executionId: 'reset-execution',
@@ -219,10 +223,12 @@ test('migrates existing Task and queue records to explicit planning identity', a
     CREATE TABLE tasks (id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,tenant_process_id TEXT NOT NULL,entity_type TEXT NOT NULL,schema_version INTEGER NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
     CREATE TABLE events (id TEXT PRIMARY KEY,event_type TEXT NOT NULL,source_entity_type TEXT NOT NULL,source_entity_id TEXT NOT NULL,entity_structure_type TEXT NOT NULL,entity_structure_version INTEGER NOT NULL,payload_json TEXT NOT NULL,occurred_at TEXT NOT NULL);
     CREATE TABLE persistent_queue_items (id TEXT PRIMARY KEY,source_event_id TEXT NOT NULL,tenant_process_id TEXT NOT NULL,event_reaction_id TEXT NOT NULL,intent_type TEXT NOT NULL,handler_key TEXT NOT NULL,status TEXT NOT NULL,attempt_count INTEGER NOT NULL,available_at TEXT NOT NULL,claimed_by TEXT,claimed_at TEXT,completed_at TEXT,failed_at TEXT,last_error TEXT,created_at TEXT NOT NULL);
+    CREATE TABLE process_work_entries (id TEXT PRIMARY KEY,source_event_id TEXT NOT NULL,source_queue_item_id TEXT NOT NULL UNIQUE,tenant_process_id TEXT NOT NULL,channel_id TEXT NOT NULL,flow_id TEXT NOT NULL,execution_id TEXT NOT NULL,work_type TEXT NOT NULL,status TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL);
     INSERT INTO entity_structure_versions VALUES ('Task',1,'{}','2026-01-01T00:00:00.000Z');
     INSERT INTO tasks VALUES ('legacy-task','IEBBeta','TaskStream/Test1','Task',1,'{"name":"Legacy task"}','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z');
     INSERT INTO events VALUES ('legacy-event','task.created','Task','legacy-task','Event',1,'{"taskId":"legacy-task","taskName":"Legacy task","tenantId":"IEBBeta","tenantProcessId":"TaskStream/Test1"}','2026-01-01T00:00:00.000Z');
     INSERT INTO persistent_queue_items VALUES ('legacy-queue','legacy-event','TaskStream/Test1','reaction.task-created.process-channel','planner.process-channel','task-planning.process-channel','queued',0,'2026-01-01T00:00:00.000Z',NULL,NULL,NULL,NULL,NULL,'2026-01-01T00:00:00.000Z');
+    INSERT INTO process_work_entries VALUES ('legacy-work','legacy-event','legacy-queue','TaskStream/Test1','task.activation','processWork.activation','legacy-execution','task-activation','queued','{}','2026-01-01T00:00:00.000Z');
   `);
   legacy.close();
 
@@ -235,12 +241,16 @@ test('migrates existing Task and queue records to explicit planning identity', a
 
   const task = await gateway.getTask('legacy-task');
   const queueItem = (await gateway.listPersistentQueueItems())[0];
+  const workEntry = (await gateway.listProcessWorkEntries())[0];
 
   assert.equal(task?.schemaVersion, 2);
   assert.deepEqual(task?.data, { name: 'Legacy task', taskRef: 'processWork' });
   assert.equal(queueItem?.sourceTaskId, 'legacy-task');
   assert.equal(queueItem?.taskRef, 'processWork');
   assert.equal(queueItem?.taskName, 'Legacy task');
+  assert.equal(workEntry?.executionKind, 'task-activation');
+  assert.equal(workEntry?.channelId, null);
+  assert.equal(workEntry?.flowId, 'processWork.activation');
 });
 
 test('[tickets: POC-TENANTPROCESS-REGISTRATION-GATE-001] rejects task creation when configured TenantProcess was not registered', async (t) => {

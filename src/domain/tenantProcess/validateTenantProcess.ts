@@ -149,13 +149,13 @@ function validateEmbeddedTenantProcessDefinition(process: UnknownRecord): void {
 
   for (const [stoName, sto] of Object.entries(stos)) {
     expectPlainObject(sto, `tenantProcess.stos.${stoName}`);
-    expectFunction(sto.flow, `tenantProcess.stos.${stoName}.flow`);
+    expectEmbeddedFlow(sto.flow, `tenantProcess.stos.${stoName}.flow`);
     validateEmbeddedObjectReferences(process, `tenantProcess.stos.${stoName}`, sto);
   }
 
   for (const [taskName, task] of Object.entries(tasks)) {
     expectPlainObject(task, `tenantProcess.tasks.${taskName}`);
-    expectFunction(task.activationFlow, `tenantProcess.tasks.${taskName}.activationFlow`);
+    expectEmbeddedFlow(task.activationFlow, `tenantProcess.tasks.${taskName}.activationFlow`);
     requireObjectIdentity(stateDefinitions, task.stateDefinition, `tenantProcess.tasks.${taskName}.stateDefinition`);
     if (task.channel !== undefined) {
       requireObjectIdentity(channels, task.channel, `tenantProcess.tasks.${taskName}.channel`);
@@ -583,6 +583,12 @@ function expectPositiveInteger(value: unknown, path: string): asserts value is n
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
     failTenantProcessValidation('INVALID_REQUIRED_FIELD', path, `${path} must be a positive integer`);
   }
+}
+
+function expectEmbeddedFlow(value: unknown, path: string): void {
+  const flow = expectPlainObject(value, path);
+  expectNonEmptyString(flow.flowId, `${path}.flowId`);
+  expectFunction(flow.executable, `${path}.executable`);
 }
 
 function expectFunction(value: unknown, path: string): asserts value is (...args: unknown[]) => unknown {

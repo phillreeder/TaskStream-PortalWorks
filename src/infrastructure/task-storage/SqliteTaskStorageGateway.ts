@@ -77,7 +77,8 @@ type WorkRow = {
   source_event_id: string;
   source_queue_item_id: string;
   tenant_process_id: string;
-  channel_id: string;
+  execution_kind: ProcessWorkEntry['executionKind'];
+  channel_id: string | null;
   flow_id: string;
   execution_id: string;
   work_type: string;
@@ -306,13 +307,14 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     const createdAt = new Date().toISOString();
     this.database
       .prepare(
-        `INSERT OR IGNORE INTO process_work_entries (id,source_event_id,source_queue_item_id,tenant_process_id,channel_id,flow_id,execution_id,work_type,status,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT OR IGNORE INTO process_work_entries (id,source_event_id,source_queue_item_id,tenant_process_id,execution_kind,channel_id,flow_id,execution_id,work_type,status,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
         randomUUID(),
         input.sourceEventId,
         input.sourceQueueItemId,
         input.tenantProcessId,
+        input.executionKind,
         input.channelId,
         input.flowId,
         input.executionId,
@@ -324,7 +326,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
 
     const row = this.database
       .prepare(
-        `SELECT id,source_event_id,source_queue_item_id,tenant_process_id,channel_id,flow_id,execution_id,work_type,status,payload_json,created_at FROM process_work_entries WHERE source_queue_item_id=?`,
+        `SELECT id,source_event_id,source_queue_item_id,tenant_process_id,execution_kind,channel_id,flow_id,execution_id,work_type,status,payload_json,created_at FROM process_work_entries WHERE source_queue_item_id=?`,
       )
       .get(input.sourceQueueItemId) as WorkRow | undefined;
     if (!row) throw new Error(`Process work entry was not created for queue item: ${input.sourceQueueItemId}`);
@@ -335,7 +337,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     return (
       this.database
         .prepare(
-          `SELECT id,source_event_id,source_queue_item_id,tenant_process_id,channel_id,flow_id,execution_id,work_type,status,payload_json,created_at FROM process_work_entries ORDER BY created_at,id`,
+          `SELECT id,source_event_id,source_queue_item_id,tenant_process_id,execution_kind,channel_id,flow_id,execution_id,work_type,status,payload_json,created_at FROM process_work_entries ORDER BY created_at,id`,
         )
         .all() as WorkRow[]
     ).map(this.toWorkEntry);
@@ -488,6 +490,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
     sourceEventId: row.source_event_id,
     sourceQueueItemId: row.source_queue_item_id,
     tenantProcessId: row.tenant_process_id,
+    executionKind: row.execution_kind,
     channelId: row.channel_id,
     flowId: row.flow_id,
     executionId: row.execution_id,
@@ -525,7 +528,7 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
       CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY,event_type TEXT NOT NULL,source_entity_type TEXT NOT NULL,source_entity_id TEXT NOT NULL,entity_structure_type TEXT NOT NULL,entity_structure_version INTEGER NOT NULL,payload_json TEXT NOT NULL,occurred_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS persistent_queue_items (id TEXT PRIMARY KEY,source_event_id TEXT NOT NULL,source_task_id TEXT NOT NULL,task_ref TEXT NOT NULL,task_name TEXT NOT NULL,tenant_process_id TEXT NOT NULL,event_reaction_id TEXT NOT NULL,intent_type TEXT NOT NULL,handler_key TEXT NOT NULL,status TEXT NOT NULL,attempt_count INTEGER NOT NULL,available_at TEXT NOT NULL,claimed_by TEXT,claimed_at TEXT,completed_at TEXT,failed_at TEXT,last_error TEXT,created_at TEXT NOT NULL,FOREIGN KEY(source_event_id) REFERENCES events(id));
       CREATE UNIQUE INDEX IF NOT EXISTS persistent_queue_items_source_event_reaction_idx ON persistent_queue_items(source_event_id,event_reaction_id);
-      CREATE TABLE IF NOT EXISTS process_work_entries (id TEXT PRIMARY KEY,source_event_id TEXT NOT NULL,source_queue_item_id TEXT NOT NULL UNIQUE,tenant_process_id TEXT NOT NULL,channel_id TEXT NOT NULL,flow_id TEXT NOT NULL,execution_id TEXT NOT NULL,work_type TEXT NOT NULL,status TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL,FOREIGN KEY(source_event_id) REFERENCES events(id),FOREIGN KEY(source_queue_item_id) REFERENCES persistent_queue_items(id));
+      CREATE TABLE IF NOT EXISTS process_work_entries (id TEXT PRIMARY KEY,source_event_id TEXT NOT NULL,source_queue_item_id TEXT NOT NULL UNIQUE,tenant_process_id TEXT NOT NULL,execution_kind TEXT NOT NULL,channel_id TEXT,flow_id TEXT NOT NULL,execution_id TEXT NOT NULL,work_type TEXT NOT NULL,status TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL,FOREIGN KEY(source_event_id) REFERENCES events(id),FOREIGN KEY(source_queue_item_id) REFERENCES persistent_queue_items(id));
     `);
     this.migratePersistentQueueItems();
     this.migrateProcessWorkEntries();
@@ -610,9 +613,11 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
   }
 
   private migrateProcessWorkEntries(): void {
-    const columns = new Set(
-      (this.database.prepare(`PRAGMA table_info(process_work_entries)`).all() as Array<{ name: string }>).map((column) => column.name),
-    );
+    let columns = this.database.prepare(`PRAGMA table_info(process_work_entries)`).all() as Array<{
+      name: string;
+      notnull: number;
+    }>;
+    const names = new Set(columns.map((column) => column.name));
     const required = [
       ['tenant_process_id', `'${this.escapeSqlLiteral(this.options.defaultTenantProcessId)}'`],
       ['channel_id', "'unknown-channel'"],
@@ -620,11 +625,52 @@ export class SqliteTaskStorageGateway implements TaskStorageGateway {
       ['execution_id', "'unknown-execution'"],
     ] as const;
     for (const [column, defaultValue] of required) {
-      if (!columns.has(column)) {
+      if (!names.has(column)) {
         this.database.exec(`ALTER TABLE process_work_entries ADD COLUMN ${column} TEXT NOT NULL DEFAULT ${defaultValue};`);
       }
     }
+
+    columns = this.database.prepare(`PRAGMA table_info(process_work_entries)`).all() as Array<{
+      name: string;
+      notnull: number;
+    }>;
+    const hasExecutionKind = columns.some((column) => column.name === 'execution_kind');
+    const channelIsRequired = columns.find((column) => column.name === 'channel_id')?.notnull === 1;
+    if (hasExecutionKind && !channelIsRequired) return;
+
+    this.database.exec(`
+      DROP TABLE IF EXISTS process_work_entries_migrated;
+      CREATE TABLE process_work_entries_migrated (
+        id TEXT PRIMARY KEY,
+        source_event_id TEXT NOT NULL,
+        source_queue_item_id TEXT NOT NULL UNIQUE,
+        tenant_process_id TEXT NOT NULL,
+        execution_kind TEXT NOT NULL,
+        channel_id TEXT,
+        flow_id TEXT NOT NULL,
+        execution_id TEXT NOT NULL,
+        work_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(source_event_id) REFERENCES events(id),
+        FOREIGN KEY(source_queue_item_id) REFERENCES persistent_queue_items(id)
+      );
+      INSERT INTO process_work_entries_migrated (
+        id,source_event_id,source_queue_item_id,tenant_process_id,execution_kind,channel_id,
+        flow_id,execution_id,work_type,status,payload_json,created_at
+      )
+      SELECT
+        id,source_event_id,source_queue_item_id,tenant_process_id,
+        ${hasExecutionKind ? 'execution_kind' : "CASE WHEN work_type = 'task-activation' THEN 'task-activation' ELSE 'stream-flow' END"},
+        CASE WHEN work_type = 'task-activation' THEN NULL ELSE channel_id END,
+        flow_id,execution_id,work_type,status,payload_json,created_at
+      FROM process_work_entries;
+      DROP TABLE process_work_entries;
+      ALTER TABLE process_work_entries_migrated RENAME TO process_work_entries;
+    `);
   }
+
 
 
   private hasTable(tableName: string): boolean {

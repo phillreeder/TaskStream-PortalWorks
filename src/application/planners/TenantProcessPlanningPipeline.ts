@@ -5,9 +5,9 @@ import type {
   ChannelStateReader,
   ComposedTenantProcessChannel,
   ComposedTenantProcessDefinition,
+  ComposedTenantProcessFlow,
   ComposedTenantProcessSto,
   ComposedTenantProcessTask,
-  FlowExecutable,
 } from '../../domain/tenantProcess/index.js';
 import type {
   TenantProcessLoaderInput,
@@ -55,7 +55,7 @@ export class TenantProcessPlanningPipeline {
   private resolution?: TenantProcessResolution;
   private tenantProcess?: ComposedTenantProcessDefinition;
   private task?: ComposedTenantProcessTask;
-  private activationFlow?: FlowExecutable;
+  private activationFlow?: ComposedTenantProcessFlow;
   private channel?: ComposedTenantProcessChannel;
   private streamId?: string;
   private streamState?: ChannelStateReader;
@@ -63,7 +63,7 @@ export class TenantProcessPlanningPipeline {
   private channelContext?: ChannelContext;
   private channelSelection?: ChannelSTOSelection;
   private sto?: ComposedTenantProcessSto;
-  private flow?: FlowExecutable;
+  private flow?: ComposedTenantProcessFlow;
   private channelRef?: string;
   private stoRef?: string;
   private flowRef?: string;
@@ -91,11 +91,11 @@ export class TenantProcessPlanningPipeline {
 
   public resolveActivationFlow(): void {
     const task = this.require(this.task, 'Task must be resolved before resolving its activation Flow.');
-    if (typeof task.activationFlow !== 'function') {
-      throw new Error(`Task ${this.input.queueItem.taskRef} does not declare an executable activationFlow.`);
+    if (!task.activationFlow || typeof task.activationFlow.executable !== 'function') {
+      throw new Error(`Task ${this.input.queueItem.taskRef} does not declare a valid activationFlow.`);
     }
     this.activationFlow = task.activationFlow;
-    this.flowRef = `${this.input.queueItem.taskRef}.activation`;
+    this.flowRef = task.activationFlow.flowId;
   }
 
   public resolveStream(): void {
@@ -188,10 +188,10 @@ export class TenantProcessPlanningPipeline {
     this.require(this.tenantProcess, 'TenantProcess must be loaded before resolving a Flow.');
     const sto = this.require(this.sto, 'STO must be resolved before resolving its Flow.');
 
-    this.flowRef = this.require(this.stoRef, 'STO reference is unavailable.');
     this.flow = sto.flow;
+    this.flowRef = sto.flow.flowId;
 
-    if (typeof this.flow !== 'function') {
+    if (typeof this.flow.executable !== 'function') {
       throw new Error(`Selected STO ${this.require(this.stoRef, 'STO reference is unavailable.')} does not contain an executable Flow.`);
     }
   }
@@ -200,20 +200,19 @@ export class TenantProcessPlanningPipeline {
     this.require(this.activationFlow, 'Task activation Flow is unavailable.');
 
     return {
+      executionKind: 'task-activation',
       correlationId: input.correlationId,
       sourceTaskId: this.input.queueItem.sourceTaskId,
       sourceTaskName: this.input.queueItem.taskName,
       sourceEventId: this.input.sourceEvent.id,
       sourceQueueItemId: this.input.queueItem.id,
       tenantProcessId: input.tenantProcessId,
-      channelRef: 'task.activation',
       taskRef: this.input.queueItem.taskRef,
-      stoRef: 'task.activation',
       flowRef: this.require(this.flowRef, 'Activation Flow reference is unavailable.'),
       executionId: randomUUID(),
       requestId: randomUUID(),
       workType: input.workType,
-      reason: 'Task activation requires Unit, Cycle, Stream, and initial StreamState materialisation.',
+      reason: 'Task activation Flow determines and creates initial Units before Stream Channel planning.',
       flowParams: {
         sourceTaskId: this.input.queueItem.sourceTaskId,
         sourceTaskName: this.input.queueItem.taskName,
@@ -227,6 +226,7 @@ export class TenantProcessPlanningPipeline {
     const selection = this.require(this.channelSelection, 'Channel selection is unavailable.');
 
     return {
+      executionKind: 'stream-flow',
       correlationId: input.correlationId,
       sourceTaskId: this.input.queueItem.sourceTaskId,
       sourceTaskName: this.input.queueItem.taskName,

@@ -101,6 +101,7 @@ export { TenantProcess, TENANT_PROCESS_DECLARATION_ORDER } from './TenantProcess
 export type {
   ComposedTenantProcessChannel,
   ComposedTenantProcessDefinition,
+  ComposedTenantProcessFlow,
   ComposedTenantProcessSto,
   ComposedTenantProcessTask,
   TenantProcessComposer,
@@ -108,6 +109,7 @@ export type {
   TenantProcessDeclarationKind,
   TenantProcessIdentity,
   TenantProcessSourceDefinition,
+  TenantProcessFlowSource,
   TenantProcessStoSource,
   TenantProcessTaskSource,
 } from './TenantProcess.js';

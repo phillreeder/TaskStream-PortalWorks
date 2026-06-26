@@ -32,6 +32,10 @@ test('[tickets: POC-TENANTPROCESS-LAZY-LOAD-001] direct loader resolves the real
   assert.equal(resolution.requestedTenantProcessId, 'TaskStream/Test1');
   assert.equal(resolution.resolvedTenantProcessId, 'TaskStream/Test1');
   assert.match(resolution.loaderKey, /TaskStream\/TenantProcess\/Test1/u);
+  assert.equal(resolution.tenantProcess.tasks.processWork?.activationFlow.flowId, 'activateProcessWork');
+  assert.equal(typeof resolution.tenantProcess.tasks.processWork?.activationFlow.executable, 'function');
+  assert.equal(resolution.tenantProcess.stos.prepareWork?.flow.flowId, 'prepareWork');
+  assert.equal(typeof resolution.tenantProcess.stos.prepareWork?.flow.executable, 'function');
 });
 
 test('[tickets: POC-TENANTPROCESS-LAZY-LOAD-001] direct loader rejects IDs that discovery did not register', async () => {

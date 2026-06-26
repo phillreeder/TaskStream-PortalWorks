@@ -67,9 +67,10 @@ test('PlannerWorker dispatches Task activation before Stream Channel planning', 
   let workEntries = await gateway.listProcessWorkEntries();
   assert.equal(activationResult?.status, 'completed');
   assert.equal(workEntries.length, 1);
+  assert.equal(workEntries[0]?.executionKind, 'task-activation');
   assert.equal(workEntries[0]?.workType, 'task-activation');
-  assert.equal(workEntries[0]?.channelId, 'task.activation');
-  assert.equal(workEntries[0]?.flowId, 'processWork.activation');
+  assert.equal(workEntries[0]?.channelId, null);
+  assert.equal(workEntries[0]?.flowId, 'activateProcessWork');
   assert.equal(workEntries[0]?.payload.planningEvidence, undefined);
   assert.equal(workEntries[0]?.payload.streamId, undefined);
 
@@ -110,6 +111,7 @@ test('PlannerWorker dispatches Task activation before Stream Channel planning', 
   assert.ok(queueItems.every((item) => item.status === 'completed'));
   assert.equal(workEntries.length, 2);
   assert.equal(workEntries[1]?.tenantProcessId, 'TaskStream/Test1');
+  assert.equal(workEntries[1]?.executionKind, 'stream-flow');
   assert.equal(workEntries[1]?.channelId, 'processWork');
   assert.equal(workEntries[1]?.flowId, 'inspectWork');
   assert.equal(workEntries[1]?.workType, 'process-channel-result');

@@ -1,7 +1,10 @@
 import { activateProcessWorkFlow } from './flows.js';
 
 export const test1ProcessWorkTask = {
-  activationFlow: activateProcessWorkFlow,
+  activationFlow: {
+    flowId: 'activateProcessWork',
+    executable: activateProcessWorkFlow,
+  },
   stateDefinition: 'processWork',
   channel: 'processWork',
   stos: ['prepareWork', 'inspectWork'],
