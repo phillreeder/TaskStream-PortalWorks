@@ -8,6 +8,7 @@ import {
   type FlatRuntimeCommandWatcherOptions,
 } from './FlatRuntimeCommandWatcher.js';
 import { FlatRuntimePathway, type FlatRuntimePathwayInput, type FlatRuntimePathwayResult } from './FlatRuntimePathway.js';
+import { createFlatRuntimeFailureEvidence } from './FlatRuntimeFailureEvidence.js';
 import { RuntimeScaffoldExecutionError } from './errors.js';
 import { RuntimeScaffoldExecutor } from './RuntimeScaffoldExecutor.js';
 import { NodeRuntimeScaffoldFileSystem, ScaffoldExecutionLoader } from './ScaffoldExecutionLoader.js';
@@ -147,14 +148,35 @@ export class RuntimeScaffold {
       input: rawInput,
       runtimeRoot,
       artifactBasePath: configDirectory,
+      configDirectory,
+      web: load.descriptor.web,
     });
+
+    const warnings = [...load.warnings];
+    const evidenceArchives = [...result.evidenceArchives];
+    if (result.status !== 'succeeded') {
+      try {
+        evidenceArchives.push(await createFlatRuntimeFailureEvidence({
+          runtimeRoot,
+          result,
+          configId: load.descriptor.id,
+          controlPath: load.controlPath,
+          configPath: load.executionPath,
+          warnings,
+        }));
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        warnings.push(`Flat RuntimeScaffold could not package failure evidence: ${reason}`);
+      }
+    }
 
     return {
       ...result,
+      evidenceArchives: Object.freeze([...new Set(evidenceArchives)]),
       configId: load.descriptor.id,
       controlPath: load.controlPath,
       configPath: load.executionPath,
-      warnings: load.warnings,
+      warnings: Object.freeze(warnings),
     };
   }
 

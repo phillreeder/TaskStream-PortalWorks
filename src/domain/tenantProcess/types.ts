@@ -14,6 +14,8 @@ import type {
   FlowHttpAccessor,
   FlowLoggerAccessor,
   FlowUnitAccessor,
+  FlowWebAccessor,
+  FlowWebResourceRequirement,
 } from './accessors/index.js';
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -32,6 +34,23 @@ export type ChannelRef = string;
 export type ProcessChannelRef = string;
 export type STORef = string;
 export type FlowRef = string;
+export type FlowAuthority = 'task' | 'edge' | 'process';
+export type FlowPermission =
+  | 'read'
+  | 'update-fields'
+  | 'add-records'
+  | 'remove-records'
+  | 'replace-collection'
+  | 'set-lifecycle'
+  | 'create-stream'
+  | 'close-stream'
+  | 'activate-task'
+  | 'complete-task'
+  | 'promote-task';
+export type FlowStateScope = 'streamState' | 'taskState' | 'processState';
+export type FlowPermissionMatrix = Readonly<{
+  [scope in FlowStateScope]: Readonly<Partial<Record<FlowPermission, readonly FlowAuthority[]>>>;
+}>;
 export type StateDefinitionRef = string;
 export type ValidatorRef = string;
 export type MapperRef = string;
@@ -82,6 +101,7 @@ export interface TenantProcessDefinition<TFields extends FieldDefinitions = Fiel
   readonly stateDefinitions: Registry<StateDefinitionRef, StateDefinitionContract<TFields>>;
   readonly validators: Registry<ValidatorRef, Validator>;
   readonly mappers: Registry<MapperRef, Mapper>;
+  readonly flowPermissions?: FlowPermissionMatrix;
 
   readonly processChannels?: Registry<ProcessChannelRef, ProcessChannel>;
   readonly unitSelectors?: Registry<UnitSelectorRef, UnitSelector>;
@@ -138,6 +158,7 @@ export interface STO {
   readonly stoId: STORef;
   readonly taskRef: TaskRef;
   readonly flowRef: FlowRef;
+  readonly authority: FlowAuthority;
   readonly startStateConstraints?: readonly Constraint[];
   readonly endStateConstraints?: readonly Constraint[];
   readonly inputContractRefs?: readonly InputContractRef[];
@@ -146,6 +167,7 @@ export interface STO {
   readonly artifactContractRefs?: readonly ArtifactContractRef[];
   readonly resultContractRefs?: readonly ResultContractRef[];
   readonly credentialContractRefs?: readonly CredentialContractRef[];
+  readonly web?: FlowWebResourceRequirement;
 }
 
 export interface Flow<TState extends StateSnapshot = StateSnapshot> {
@@ -230,6 +252,7 @@ export interface FlowContext<TState extends StateSnapshot = StateSnapshot> {
   readonly logger: FlowLoggerAccessor;
   readonly unit: FlowUnitAccessor;
   readonly http: FlowHttpAccessor;
+  readonly web: FlowWebAccessor;
   probe(name: string, evaluate: FlowProbeEvaluator): boolean;
   success<TResult = unknown>(result?: TResult, options?: FlowResultOptions): FlowResult;
   retry(options?: FlowRetryOptions): FlowResult;

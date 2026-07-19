@@ -7,6 +7,7 @@ import type {
   RuntimeScaffoldOutputOptions,
   RuntimeScaffoldReference,
   RuntimeScaffoldStateReference,
+  RuntimeScaffoldWebOptions,
 } from './types.js';
 
 export interface NormalizedDescriptorResult {
@@ -30,6 +31,7 @@ export class ScaffoldDescriptorNormalizer {
     const sourceStateRef = normalizeDescriptorStateReference(descriptorObject, sourcePath);
     const execution = normalizeDescriptorExecution(descriptorObject, sourcePath);
     const output = normalizeDescriptorOutput(descriptorObject, sourcePath);
+    const web = normalizeWeb(descriptorObject.web, sourcePath);
 
     if (mode === 'flowOnly' && execution?.channelId) {
       warnings.push('flowOnly descriptor includes execution.channelId; loader preserved it without resolving Channel semantics.');
@@ -49,6 +51,7 @@ export class ScaffoldDescriptorNormalizer {
         ...(execution ? { execution } : {}),
         ...(output ? { output } : {}),
         ...(isJsonObject(descriptorObject.mocks) ? { mocks: descriptorObject.mocks } : {}),
+        ...(web ? { web } : {}),
       },
       warnings,
     };
@@ -152,6 +155,46 @@ function normalizeExecution(rawValue: unknown, sourcePath?: string): RuntimeScaf
   };
 }
 
+function normalizeWeb(rawValue: unknown, sourcePath?: string): RuntimeScaffoldWebOptions | undefined {
+  if (rawValue === undefined) return undefined;
+
+  const value = expectObject(rawValue, 'web', sourcePath);
+  const provider = expectString(value.provider, 'web.provider', sourcePath);
+  if (provider !== 'playwright') {
+    throw invalidDescriptor('web.provider must be playwright', sourcePath);
+  }
+
+  const session = expectObject(value.session, 'web.session', sourcePath);
+  const strategy = expectString(session.strategy, 'web.session.strategy', sourcePath);
+  if (strategy !== 'persistent-profile') {
+    throw invalidDescriptor('web.session.strategy must be persistent-profile', sourcePath);
+  }
+
+  const browser = value.browser === undefined ? undefined : expectObject(value.browser, 'web.browser', sourcePath);
+  return {
+    provider,
+    session: {
+      sessionRef: expectString(session.sessionRef, 'web.session.sessionRef', sourcePath),
+      providerId: expectString(session.providerId, 'web.session.providerId', sourcePath),
+      ...(session.tenantRef === undefined ? {} : { tenantRef: expectString(session.tenantRef, 'web.session.tenantRef', sourcePath) }),
+      ...(session.accountRef === undefined ? {} : { accountRef: expectString(session.accountRef, 'web.session.accountRef', sourcePath) }),
+      strategy,
+      profileDir: expectString(session.profileDir, 'web.session.profileDir', sourcePath),
+    },
+    ...(browser ? {
+      browser: {
+        ...(browser.maximumBrowserInstances === undefined ? {} : {
+          maximumBrowserInstances: expectPositiveInteger(browser.maximumBrowserInstances, 'web.browser.maximumBrowserInstances', sourcePath),
+        }),
+        ...(browser.headless === undefined ? {} : { headless: expectBoolean(browser.headless, 'web.browser.headless', sourcePath) }),
+        ...(isJsonObject(browser.launchOptions) ? { launchOptions: browser.launchOptions } : {}),
+        ...(isJsonObject(browser.contextOptions) ? { contextOptions: browser.contextOptions } : {}),
+        ...(isJsonObject(browser.persistentContextOptions) ? { persistentContextOptions: browser.persistentContextOptions } : {}),
+      },
+    } : {}),
+  };
+}
+
 function normalizeOutput(rawValue: unknown, sourcePath?: string): RuntimeScaffoldOutputOptions | undefined {
   if (rawValue === undefined) {
     return undefined;
@@ -192,6 +235,13 @@ function optionalString(value: unknown, fieldName: string, sourcePath?: string):
     return undefined;
   }
   return expectString(value, fieldName, sourcePath);
+}
+
+function expectPositiveInteger(value: unknown, fieldName: string, sourcePath?: string): number {
+  if (!Number.isInteger(value) || (value as number) <= 0) {
+    throw invalidDescriptor(`${fieldName} must be a positive integer`, sourcePath);
+  }
+  return value as number;
 }
 
 function expectBoolean(value: unknown, fieldName: string, sourcePath?: string): boolean {

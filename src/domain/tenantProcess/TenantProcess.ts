@@ -4,10 +4,13 @@ import { channel as defineChannel } from './channel.js';
 import { flow as defineFlow } from './flow.js';
 import type {
   ChannelExecutable,
+  FlowAuthority,
   FlowExecutable,
+  FlowPermissionMatrix,
   InputContract,
   ResultContract,
 } from './types.js';
+import type { FlowWebResourceRequirement } from './accessors/index.js';
 import { validateTenantProcessDefinition } from './validateTenantProcess.js';
 
 export const TENANT_PROCESS_DECLARATION_ORDER = [
@@ -32,6 +35,7 @@ export interface TenantProcessSourceDefinition {
   readonly version: number;
   readonly description: string;
   readonly declarationOrder?: readonly TenantProcessDeclarationKind[];
+  readonly flowPermissions: FlowPermissionMatrix;
 }
 
 /**
@@ -51,9 +55,11 @@ export interface ComposedTenantProcessFlow {
 }
 
 export interface ComposedTenantProcessSto {
+  readonly authority: FlowAuthority;
   readonly flow: ComposedTenantProcessFlow;
   readonly inputContracts?: readonly InputContract[];
   readonly resultContracts?: readonly ResultContract[];
+  readonly web?: FlowWebResourceRequirement;
   readonly [key: string]: unknown;
 }
 
@@ -72,6 +78,7 @@ export interface ComposedTenantProcessDefinition {
   readonly name: string;
   readonly version: number;
   readonly description: string;
+  readonly flowPermissions: FlowPermissionMatrix;
   readonly tasks: Readonly<Record<string, ComposedTenantProcessTask>>;
   readonly channels: Readonly<Record<string, ComposedTenantProcessChannel>>;
   readonly stos: Readonly<Record<string, ComposedTenantProcessSto>>;
@@ -96,9 +103,11 @@ export type TenantProcessFlowSource =
     };
 
 export interface TenantProcessStoSource {
+  readonly authority: FlowAuthority;
   readonly flow: TenantProcessFlowSource;
   readonly inputContracts?: readonly InputContract[];
   readonly resultContracts?: readonly ResultContract[];
+  readonly web?: FlowWebResourceRequirement;
   readonly [key: string]: unknown;
 }
 
@@ -222,6 +231,7 @@ class TenantProcessBuilder implements TenantProcessComposer {
       name: this.source.name,
       version: this.source.version,
       description: this.source.description,
+      flowPermissions: this.source.flowPermissions,
       tasks: this.taskRegistry,
       channels: this.channelRegistry,
       stos: this.stoRegistry,
@@ -275,7 +285,10 @@ class TenantProcessBuilder implements TenantProcessComposer {
   }
 }
 
-function composeFlow(source: TenantProcessFlowSource, fallbackFlowId: string): ComposedTenantProcessFlow {
+function composeFlow(
+  source: TenantProcessFlowSource,
+  fallbackFlowId: string,
+): ComposedTenantProcessFlow {
   if (typeof source === 'function') {
     return {
       flowId: fallbackFlowId,

@@ -16,17 +16,29 @@
     "declaration": true,
     "sourceMap": true,
     "paths": {
-      "@TaskStream/SiteAutomation": [
-        "packages/automation/index.ts"
-      ],
-      "@TaskStream/SiteAutomation/*": [
-        "packages/automation/*"
-      ],
       "@TaskStream/App/*": [
         "src/*"
       ],
       "@TaskStream/Tenants/*": [
         "Tenants/*"
+      ],
+      "@taskstream/web-automation": [
+        "packages/automation/src/index.ts"
+      ],
+      "@taskstream/web-automation/*": [
+        "packages/automation/src/*"
+      ],
+      "@taskstream/web-automation/resources": [
+        "packages/automation/src/resources/public.ts"
+      ],
+      "@taskstream/web-automation/playwright": [
+        "packages/automation/src/playwright/index.ts"
+      ],
+      "@taskstream/web-automation/semantic": [
+        "packages/automation/src/semantic/index.ts"
+      ],
+      "@taskstream/web-automation/recipes/linkedin": [
+        "packages/automation/src/recipes/linkedin/index.ts"
       ]
     }
   },

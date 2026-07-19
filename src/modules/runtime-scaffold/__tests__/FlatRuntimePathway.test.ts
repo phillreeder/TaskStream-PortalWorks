@@ -3,7 +3,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { TenantProcess } from '../../../domain/tenantProcess/index.js';
+import { DEFAULT_FLOW_PERMISSIONS, TenantProcess } from '../../../domain/tenantProcess/index.js';
 import type { ChannelExecutable, FlowExecutable } from '../../../domain/tenantProcess/index.js';
 import { RuntimeScaffold } from '../RuntimeScaffold.js';
 
@@ -53,6 +53,7 @@ const flatTestTenantProcess = TenantProcess.define({
   name: 'Flat Scaffold Test',
   version: 1,
   description: 'Canonical TenantProcess used to verify the flat RuntimeScaffold pathway.',
+  flowPermissions: DEFAULT_FLOW_PERMISSIONS,
 }, ({ tp }) => {
   const stateDefinitions = tp.stateDefinitions({
     work: {
@@ -70,8 +71,8 @@ const flatTestTenantProcess = TenantProcess.define({
   tp.inputContracts({});
   tp.resultContracts({});
   const stos = tp.stos({
-    prepare: { flow: prepareFlow },
-    inspect: { flow: inspectFlow },
+    prepare: { authority: 'task', flow: prepareFlow },
+    inspect: { authority: 'task', flow: inspectFlow },
   });
   tp.tasks({
     work: {

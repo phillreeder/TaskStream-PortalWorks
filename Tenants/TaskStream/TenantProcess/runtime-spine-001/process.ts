@@ -1,3 +1,4 @@
+import { DEFAULT_FLOW_PERMISSIONS } from '@TaskStream/App/domain/tenantProcess/index.js';
 import { RUNTIME_SPINE_TENANT_PROCESS_IDS } from './ids.js';
 import { reviewSubmissionTask } from './task.js';
 
@@ -12,6 +13,7 @@ export const runtimeSpineTenantProcess = {
 
   name: 'Runtime Spine 001',
   description: 'Feature-coverage TenantProcess wrapper for proving StateDefinition, Channel, STO, Flow, and contract registration.',
+  flowPermissions: DEFAULT_FLOW_PERMISSIONS,
 
   tasks: [reviewSubmissionTask],
 };

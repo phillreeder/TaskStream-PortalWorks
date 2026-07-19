@@ -79,12 +79,17 @@ export async function runFlatRuntimeStream(input: {
     });
 
     let flowResult: FlowResult;
+    input.session.currentStoRef = stoRef;
+    input.session.currentWebRequirement = sto.web;
     try {
       flowResult = await sto.flow.executable(
         createScaffoldFlowContextForExecution({
           taskRef: input.session.taskRef,
           binding: { kind: 'stream-flow', stoRef, flowRef },
           container,
+          authority: sto.authority,
+          flowPermissions: input.tenantProcess.flowPermissions,
+          flowRef,
           accessors: input.accessors,
         }),
         {
@@ -98,6 +103,9 @@ export async function runFlatRuntimeStream(input: {
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       return finishFlatRuntimeStream(input, stream, state, 'failed', reason);
+    } finally {
+      input.session.currentStoRef = undefined;
+      input.session.currentWebRequirement = undefined;
     }
 
     const proposedState = cloneRecord(container.snapshot());

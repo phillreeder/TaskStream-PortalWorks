@@ -4,15 +4,19 @@ import type {
   StatePathInput,
   StatePathValueInput,
 } from '../../definitionRuntime/state/index.js';
+import { assertFlowPermission } from '../../domain/tenantProcess/index.js';
 import type {
   FlowArtifactAccessor,
+  FlowAuthority,
   FlowChangeWriter,
   FlowContext,
+  FlowPermissionMatrix,
   FlowCredentialsAccessor,
   FlowExecutionBinding,
   FlowHttpAccessor,
   FlowLoggerAccessor,
   FlowUnitAccessor,
+  FlowWebAccessor,
 } from '../../domain/tenantProcess/index.js';
 import type { RuntimeScaffoldFlowSelection } from './RuntimeScaffoldPipelineTypes.js';
 import { loadScaffoldArtifactAccessor } from './flow-context/accessors/artifact.js';
@@ -20,6 +24,7 @@ import { loadScaffoldCredentialsAccessor } from './flow-context/accessors/creden
 import { loadScaffoldHttpAccessor } from './flow-context/accessors/http.js';
 import { loadScaffoldLoggerAccessor } from './flow-context/accessors/logger.js';
 import { loadScaffoldUnitAccessor } from './flow-context/accessors/unit.js';
+import { loadScaffoldWebAccessor } from './flow-context/accessors/web.js';
 
 export interface ScaffoldFlowContextAccessors {
   readonly artifact?: FlowArtifactAccessor;
@@ -27,12 +32,16 @@ export interface ScaffoldFlowContextAccessors {
   readonly logger?: FlowLoggerAccessor;
   readonly unit?: FlowUnitAccessor;
   readonly http?: FlowHttpAccessor;
+  readonly web?: FlowWebAccessor;
 }
 
 export interface ScaffoldFlowContextExecutionInput {
   readonly taskRef: string;
   readonly binding: FlowExecutionBinding;
   readonly container: StateContainer;
+  readonly authority?: FlowAuthority;
+  readonly flowPermissions?: FlowPermissionMatrix;
+  readonly flowRef?: string;
   readonly accessors?: ScaffoldFlowContextAccessors;
 }
 
@@ -54,11 +63,30 @@ export function createScaffoldFlowContext(
 export function createScaffoldFlowContextForExecution(
   input: ScaffoldFlowContextExecutionInput,
 ): FlowContext {
+  if (input.authority && input.flowPermissions) {
+    assertFlowPermission({
+      permissions: input.flowPermissions,
+      authority: input.authority,
+      scope: 'streamState',
+      permission: 'read',
+      flowRef: input.flowRef ?? input.binding.flowRef,
+    });
+  }
+
   const stateReader = new StateReader({ container: input.container });
   const stateWriter = new StateWriter({ container: input.container });
   const probeResults = new Map<string, boolean>();
   const change = {
     set(value: StatePathValueInput, options?: Parameters<FlowChangeWriter['set']>[1]) {
+      if (input.authority && input.flowPermissions) {
+        assertFlowPermission({
+          permissions: input.flowPermissions,
+          authority: input.authority,
+          scope: 'streamState',
+          permission: 'update-fields',
+          flowRef: input.flowRef ?? input.binding.flowRef,
+        });
+      }
       return stateWriter.set_path(value, options as any) as ReturnType<FlowChangeWriter['set']>;
     },
   } as FlowChangeWriter;
@@ -83,6 +111,7 @@ export function createScaffoldFlowContextForExecution(
     logger: accessors.logger ?? loadScaffoldLoggerAccessor(),
     unit: accessors.unit ?? loadScaffoldUnitAccessor(),
     http: accessors.http ?? loadScaffoldHttpAccessor(),
+    web: accessors.web ?? loadScaffoldWebAccessor(),
     probe(name, evaluate) {
       const cached = probeResults.get(name);
       if (cached !== undefined) {

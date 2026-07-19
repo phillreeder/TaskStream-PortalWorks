@@ -1,4 +1,4 @@
-import { TenantProcess } from '../../../../domain/tenantProcess/index.js';
+import { DEFAULT_FLOW_PERMISSIONS, TenantProcess } from '../../../../domain/tenantProcess/index.js';
 import type { ChannelExecutable, FlowExecutable } from '../../../../domain/tenantProcess/index.js';
 
 const activationFlow = (async (ctx, input) => {
@@ -44,6 +44,7 @@ export const flatCommandTenantProcess = TenantProcess.define({
   name: 'Flat Command Test',
   version: 1,
   description: 'Command-file fixture with Flow-owned artifact resolution.',
+  flowPermissions: DEFAULT_FLOW_PERMISSIONS,
 }, ({ tp }) => {
   const stateDefinitions = tp.stateDefinitions({
     work: {
@@ -61,7 +62,7 @@ export const flatCommandTenantProcess = TenantProcess.define({
   const channels = tp.channels({ work: channel });
   tp.inputContracts({});
   tp.resultContracts({});
-  const stos = tp.stos({ consume: { flow: consumeArtifactFlow } });
+  const stos = tp.stos({ consume: { authority: 'task', flow: consumeArtifactFlow } });
   tp.tasks({
     work: {
       activationFlow: { flowId: 'activate', executable: activationFlow },

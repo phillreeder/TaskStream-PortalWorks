@@ -14,10 +14,26 @@ export type {
   FlowLoggerAccessor,
   FlowUnitAccessor,
   FlowUnitRecord,
+  FlowWebAccessor,
+  FlowWebCaptureInput,
+  FlowWebCaptureRecord,
+  FlowWebNavigationRecord,
+  FlowWebPageSelectionMode,
+  FlowWebReleaseDisposition,
+  FlowWebResourceRequirement,
 } from './accessors/index.js';
 export { TenantProcessValidationError, failTenantProcessValidation } from './errors.js';
 export { channel } from './channel.js';
 export { flow } from './flow.js';
+export {
+  DEFAULT_FLOW_PERMISSIONS,
+  FLOW_AUTHORITIES,
+  FLOW_PERMISSIONS,
+  FLOW_STATE_SCOPES,
+  assertFlowPermission,
+  defineFlowPermissions,
+  isFlowPermissionAllowed,
+} from './flowPermissions.js';
 export type {
   ArtifactContract,
   ArtifactContractRef,
@@ -33,6 +49,10 @@ export type {
   CredentialKind,
   EffectiveProcessState,
   Flow,
+  FlowAuthority,
+  FlowPermission,
+  FlowPermissionMatrix,
+  FlowStateScope,
   FlowChangeWriter,
   FlowContext,
   FlowExecutable,

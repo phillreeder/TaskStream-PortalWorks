@@ -15,3 +15,13 @@ export type {
 
 export type { FlowCredentialRecord, FlowCredentialsAccessor } from './credentials.js';
 export type { FlowLogInput, FlowLoggerAccessor } from './logger.js';
+
+export type {
+  FlowWebAccessor,
+  FlowWebCaptureInput,
+  FlowWebCaptureRecord,
+  FlowWebNavigationRecord,
+  FlowWebPageSelectionMode,
+  FlowWebReleaseDisposition,
+  FlowWebResourceRequirement,
+} from './web.js';

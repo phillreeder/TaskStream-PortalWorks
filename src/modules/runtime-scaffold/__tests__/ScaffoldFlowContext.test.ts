@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { defineState, StateContainer } from '../../../definitionRuntime/state/index.js';
-import { createScaffoldFlowContext } from '../ScaffoldFlowContext.js';
+import { DEFAULT_FLOW_PERMISSIONS } from '../../../domain/tenantProcess/index.js';
+import {
+  createScaffoldFlowContext,
+  createScaffoldFlowContextForExecution,
+} from '../ScaffoldFlowContext.js';
 import type { RuntimeScaffoldFlowSelection } from '../RuntimeScaffoldPipelineTypes.js';
 
 const stateDefinition = defineState({
@@ -64,6 +68,22 @@ describe('createScaffoldFlowContext', () => {
     );
     expect(() => context.retry({ afterSeconds: 1.5, allowFastRetry: true })).toThrow(
       'Retry delay must be a positive whole number of seconds',
+    );
+  });
+
+
+  it('enforces the TenantProcess permission matrix on StreamState writes', () => {
+    const context = createScaffoldFlowContextForExecution({
+      taskRef: 'task',
+      binding: { kind: 'stream-flow', stoRef: 'sto', flowRef: 'process-flow' },
+      container: new StateContainer({ definition: stateDefinition }),
+      authority: 'process',
+      flowPermissions: DEFAULT_FLOW_PERMISSIONS,
+      flowRef: 'process-flow',
+    });
+
+    expect(() => context.change.set({ path: ['status'], value: 'changed' })).toThrow(
+      'Flow process-flow is not permitted to use update-fields on streamState',
     );
   });
 

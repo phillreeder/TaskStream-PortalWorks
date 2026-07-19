@@ -1,10 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
-import type { logDTO } from '@TaskStream/SiteAutomation/interaction/index.js';
+import type { InteractionTelemetryEvent } from '../../packages/automation/src/interaction/index.js';
 
 const defaultClient = new PrismaClient();
 
-export type InteractionLogInput = logDTO & {
+export type InteractionLogInput = InteractionTelemetryEvent & {
     runId?: string;
     itemId?: string;
     metadata?: Prisma.InputJsonValue;

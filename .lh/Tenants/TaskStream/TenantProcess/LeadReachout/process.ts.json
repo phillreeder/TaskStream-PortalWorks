@@ -1,0 +1,18 @@
+{
+    "sourceFile": "Tenants/TaskStream/TenantProcess/LeadReachout/process.ts",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1784300952833,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1784300952833,
+            "name": "Commit-0",
+            "content": "import { TenantProcess } from '@TaskStream/App/domain/tenantProcess/index.js';\nimport { test1ProcessWorkChannel } from './channels.js';\nimport {\n  prepareWorkInputContract,\n  workInspectedResultContract,\n  workPreparedResultContract,\n} from './contracts.js';\nimport { inspectWorkFlow, prepareWorkFlow } from './flows.js';\nimport { test1ProcessWorkStateDefinition } from './stateDefinition.js';\nimport { inspectWorkSto, prepareWorkSto } from './stos.js';\nimport { test1ProcessWorkTask } from './task.js';\n\nexport const leadReachOut1TenantProcess = TenantProcess.define({\n  id: { tenant: 'TaskStream', process: 'Test1' },\n  name: 'Test1',\n  version: 1,\n  description: 'Governed POC TenantProcess structure for exercising the real Task, Channel, STO, and Flow model.',\n}, ({ tp }) => {\n  const stateDefinitions = tp.stateDefinitions({\n    processWork: test1ProcessWorkStateDefinition,\n  });\n\n  const channels = tp.channels({\n    processWork: test1ProcessWorkChannel,\n  });\n\n  const inputContracts = tp.inputContracts({\n    prepareWork: prepareWorkInputContract,\n  });\n\n  const resultContracts = tp.resultContracts({\n    workPrepared: workPreparedResultContract,\n    workInspected: workInspectedResultContract,\n  });\n\n  const stos = tp.stos({\n    prepareWork: {\n      ...prepareWorkSto,\n      flow: prepareWorkFlow,\n      inputContracts: [inputContracts.prepareWork],\n      resultContracts: [resultContracts.workPrepared],\n    },\n    inspectWork: {\n      ...inspectWorkSto,\n      flow: inspectWorkFlow,\n      resultContracts: [resultContracts.workInspected],\n    },\n  });\n\n  tp.tasks({\n    processWork: {\n      ...test1ProcessWorkTask,\n      stateDefinition: stateDefinitions.processWork,\n      channel: channels.processWork,\n      stos: {\n        prepareWork: stos.prepareWork,\n        inspectWork: stos.inspectWork,\n      },\n      defaultSto: stos.prepareWork,\n      inputContracts: [inputContracts.prepareWork],\n    },\n  });\n});\n"
+        }
+    ]
+}

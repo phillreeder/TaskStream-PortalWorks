@@ -22,3 +22,4 @@ tmp/allure-report/**
 graphify-out/**
 services/web-dashboard/package-lock.json
 services/web-dashboard/node_modules
+runtime-scaffold/flat/runtime-data/runs/*

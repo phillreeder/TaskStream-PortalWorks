@@ -1,6 +1,7 @@
 import { StateDefinitionValidationError, validateDefinitionStructure, validateFieldDefinition } from '../../definitionRuntime/state/index.js';
 import type { StateDefinitionInput } from '../../definitionRuntime/state/index.js';
 import { failTenantProcessValidation } from './errors.js';
+import { FLOW_AUTHORITIES, FLOW_PERMISSIONS, FLOW_STATE_SCOPES } from './flowPermissions.js';
 import type {
   ArtifactContract,
   ArtifactContractRef,
@@ -9,6 +10,8 @@ import type {
   CredentialContract,
   CredentialContractRef,
   Flow,
+  FlowAuthority,
+  FlowPermissionMatrix,
   FlowRef,
   InputContract,
   InputContractRef,
@@ -74,6 +77,9 @@ export function validateTenantProcessDefinition(candidate: unknown): asserts can
   const definition = process as unknown as TenantProcessDefinition;
 
   validateStateDefinitions(definition.stateDefinitions);
+  if (definition.flowPermissions !== undefined) {
+    validateFlowPermissionMatrix(definition.flowPermissions, 'tenantProcess.flowPermissions');
+  }
   validateRegistryIdentity<TaskRef, Task>('tasks', definition.tasks, (task) => task.taskId);
   validateRegistryIdentity<ChannelRef, Channel>('channels', definition.channels, (channel) => channel.channelId);
   validateRegistryIdentity<STORef, STO>('stos', definition.stos, (sto) => sto.stoId);
@@ -139,6 +145,7 @@ function validateEmbeddedTenantProcessDefinition(process: UnknownRecord): void {
   const stateDefinitions = process.stateDefinitions as Registry<string, unknown>;
 
   validateStateDefinitions(stateDefinitions);
+  validateFlowPermissionMatrix(process.flowPermissions, 'tenantProcess.flowPermissions');
   validateEmbeddedStreamStateContracts(process, 'inputContracts');
   validateEmbeddedStreamStateContracts(process, 'resultContracts');
 
@@ -149,6 +156,7 @@ function validateEmbeddedTenantProcessDefinition(process: UnknownRecord): void {
 
   for (const [stoName, sto] of Object.entries(stos)) {
     expectPlainObject(sto, `tenantProcess.stos.${stoName}`);
+    expectFlowAuthority(sto.authority, `tenantProcess.stos.${stoName}.authority`);
     expectEmbeddedFlow(sto.flow, `tenantProcess.stos.${stoName}.flow`);
     validateEmbeddedObjectReferences(process, `tenantProcess.stos.${stoName}`, sto);
   }
@@ -414,6 +422,7 @@ function validateTaskReferences(definition: TenantProcessDefinition): void {
 
 function validateStoReferences(definition: TenantProcessDefinition): void {
   for (const sto of Object.values(definition.stos)) {
+    expectFlowAuthority(sto.authority, `tenantProcess.stos.${sto.stoId}.authority`);
     requireReference(definition.tasks, sto.taskRef, `tenantProcess.stos.${sto.stoId}.taskRef`);
     requireReference(definition.flows, sto.flowRef, `tenantProcess.stos.${sto.stoId}.flowRef`);
   }
@@ -589,6 +598,66 @@ function expectEmbeddedFlow(value: unknown, path: string): void {
   const flow = expectPlainObject(value, path);
   expectNonEmptyString(flow.flowId, `${path}.flowId`);
   expectFunction(flow.executable, `${path}.executable`);
+}
+
+function validateFlowPermissionMatrix(value: unknown, path: string): asserts value is FlowPermissionMatrix {
+  const matrix = expectPlainObject(value, path);
+  const allowedScopes = new Set<string>(FLOW_STATE_SCOPES);
+  const allowedPermissions = new Set<string>(FLOW_PERMISSIONS);
+
+  for (const scope of FLOW_STATE_SCOPES) {
+    const scopePermissions = expectPlainObject(matrix[scope], `${path}.${scope}`);
+
+    for (const [permission, authorities] of Object.entries(scopePermissions)) {
+      if (!allowedPermissions.has(permission)) {
+        failTenantProcessValidation(
+          'INVALID_REQUIRED_FIELD',
+          `${path}.${scope}.${permission}`,
+          `${path}.${scope}.${permission} is not a recognized Flow permission`,
+        );
+      }
+      if (!Array.isArray(authorities)) {
+        failTenantProcessValidation(
+          'INVALID_REQUIRED_FIELD',
+          `${path}.${scope}.${permission}`,
+          `${path}.${scope}.${permission} must be an array of Flow authorities`,
+        );
+      }
+
+      const seen = new Set<string>();
+      for (const authority of authorities) {
+        expectFlowAuthority(authority, `${path}.${scope}.${permission}`);
+        if (seen.has(authority)) {
+          failTenantProcessValidation(
+            'INVALID_REQUIRED_FIELD',
+            `${path}.${scope}.${permission}`,
+            `${path}.${scope}.${permission} must not repeat Flow authority ${authority}`,
+          );
+        }
+        seen.add(authority);
+      }
+    }
+  }
+
+  for (const scope of Object.keys(matrix)) {
+    if (!allowedScopes.has(scope)) {
+      failTenantProcessValidation(
+        'INVALID_REQUIRED_FIELD',
+        `${path}.${scope}`,
+        `${path}.${scope} is not a recognized state scope`,
+      );
+    }
+  }
+}
+
+function expectFlowAuthority(value: unknown, path: string): asserts value is FlowAuthority {
+  if (typeof value !== 'string' || !FLOW_AUTHORITIES.includes(value as FlowAuthority)) {
+    failTenantProcessValidation(
+      'INVALID_REQUIRED_FIELD',
+      path,
+      `${path} must be one of ${FLOW_AUTHORITIES.join(', ')}`,
+    );
+  }
 }
 
 function expectFunction(value: unknown, path: string): asserts value is (...args: unknown[]) => unknown {

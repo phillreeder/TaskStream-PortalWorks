@@ -1,0 +1,18 @@
+{
+    "sourceFile": "Tenants/TaskStream/TenantProcess/LeadReachout1/stateDefinition.ts",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1784301002766,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1784301002766,
+            "name": "Commit-0",
+            "content": "export const StateDefinition = {\n  id: 'processWork',\n  version: 1,\n  strict: true,\n\n  defaults: {\n    status: 'pending',\n    sourceEventId: '',\n    sourceQueueItemId: '',\n    workEntryId: '',\n    lastError: '',\n  },\n\n  fields: {\n    status: {\n      type: 'enum',\n      values: ['pending', 'prepared', 'materialized', 'failed'] as const,\n    },\n    sourceEventId: { type: 'string' },\n    sourceQueueItemId: { type: 'string' },\n    workEntryId: { type: 'string' },\n    lastError: { type: 'string' },\n  },\n} as const;\n"
+        }
+    ]
+}

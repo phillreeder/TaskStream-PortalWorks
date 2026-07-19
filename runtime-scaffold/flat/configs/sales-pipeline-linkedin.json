@@ -1,0 +1,59 @@
+{
+  "id": "taskstream-sales-pipeline-linkedin-step-001",
+  "mode": "flatTask",
+  "tenantProcessRef": {
+    "kind": "module",
+    "ref": "../../../Tenants/TaskStream/TenantProcess/SalesPipeline1/index.ts"
+  },
+  "taskRef": "searchConnections",
+  "runtimeRoot": "../runtime-data",
+  "web": {
+    "provider": "playwright",
+    "session": {
+      "sessionRef": "linkedin-primary",
+      "providerId": "linkedin",
+      "tenantRef": "TaskStream",
+      "accountRef": "linkedin-primary",
+      "strategy": "persistent-profile",
+      "profileDir": "../runtime-data/browser-profiles/linkedin-primary"
+    },
+    "browser": {
+      "maximumBrowserInstances": 1,
+      "headless": false,
+      "persistentContextOptions": {
+        "viewport": {
+          "width": 1440,
+          "height": 1000
+        }
+      }
+    }
+  },
+  "input": {
+    "sourceTaskId": "sales-pipeline-linkedin-step-001",
+    "sourceTaskName": "Capture LinkedIn landing page evidence",
+    "accountRef": "linkedin-primary",
+    "startUrl": "https://www.linkedin.com/feed/",
+    "anchorText": "Search",
+    "structureDepth": 10,
+    "ancestorDepth": 3,
+    "descendantDepth": 5
+  },
+  "initialState": {
+    "objectiveRef": "",
+    "searchTerm": "",
+    "phase": "ready_for_page_inspection",
+    "currentPageNumber": 1,
+    "currentPageRef": "",
+    "currentPageCursor": "",
+    "hasNextPage": true,
+    "candidateKeysOnPage": [],
+    "viableCandidateKeysOnPage": [],
+    "pagesInspected": 0,
+    "candidatesSeen": 0,
+    "candidatesResolved": 0,
+    "connectionRequestsSent": 0,
+    "candidatesSkipped": 0,
+    "candidatesFailed": 0,
+    "lastError": ""
+  }
+}

@@ -5,6 +5,8 @@ import type {
   FlowLoggerAccessor,
   FlowUnitAccessor,
   FlowUnitRecord,
+  FlowWebAccessor,
+  FlowWebResourceRequirement,
 } from '../../domain/tenantProcess/index.js';
 import type { JsonObject, JsonValue } from '../../domain/tenantProcess/types.js';
 import {
@@ -22,12 +24,15 @@ export interface FlatRuntimeSession {
   readonly units: Map<string, FlatRuntimeStoredUnit>;
   readonly artifacts: Map<string, FlatRuntimeStoredArtifact>;
   currentStreamId?: string;
+  currentStoRef?: string;
+  currentWebRequirement?: FlowWebResourceRequirement;
 }
 
 export interface FlatRuntimeAccessors {
   readonly unit: FlowUnitAccessor;
   readonly artifact: FlowArtifactAccessor;
   readonly logger: FlowLoggerAccessor;
+  readonly web: FlowWebAccessor;
 }
 
 export type FlatRuntimeTraceWriter = (
@@ -41,8 +46,9 @@ export function createFlatRuntimeAccessors(input: {
   readonly session: FlatRuntimeSession;
   readonly trace: FlatRuntimeTraceWriter;
   readonly artifactBasePath: string;
+  readonly web: FlowWebAccessor;
 }): FlatRuntimeAccessors {
-  const { store, session, trace, artifactBasePath } = input;
+  const { store, session, trace, artifactBasePath, web } = input;
 
   const unit: FlowUnitAccessor = {
     create: async ({ type, data }) => {
@@ -158,7 +164,7 @@ export function createFlatRuntimeAccessors(input: {
     error: ({ message, context }) => log('error', message, context),
   };
 
-  return { unit, artifact, logger };
+  return { unit, artifact, logger, web };
 }
 
 function normalizeLimit(value: number | undefined): number {

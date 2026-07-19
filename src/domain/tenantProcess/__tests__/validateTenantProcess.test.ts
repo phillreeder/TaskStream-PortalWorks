@@ -122,6 +122,24 @@ describe('TenantProcess embedded StreamState contracts', () => {
     expect(() => validateTenantProcessDefinition(iebBetaTest1TenantProcess)).not.toThrow();
   });
 
+  it('requires authority on every composed STO', () => {
+    const process = {
+      ...iebBetaTest1TenantProcess,
+      stos: {
+        ...iebBetaTest1TenantProcess.stos,
+        prepareWork: {
+          ...iebBetaTest1TenantProcess.stos.prepareWork,
+          authority: undefined,
+        },
+      },
+    };
+
+    expectTenantProcessValidationError(
+      () => validateTenantProcessDefinition(process),
+      'tenantProcess.stos.prepareWork.authority',
+    );
+  });
+
   it('rejects the obsolete flow executable wrapper', () => {
     const process = {
       ...iebBetaTest1TenantProcess,

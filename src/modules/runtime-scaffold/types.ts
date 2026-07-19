@@ -35,6 +35,26 @@ export interface RuntimeScaffoldExecutionTarget {
   readonly input?: JsonValue;
 }
 
+
+export interface RuntimeScaffoldWebOptions {
+  readonly provider: 'playwright';
+  readonly session: {
+    readonly sessionRef: string;
+    readonly providerId: string;
+    readonly tenantRef?: string;
+    readonly accountRef?: string;
+    readonly strategy: 'persistent-profile';
+    readonly profileDir: string;
+  };
+  readonly browser?: {
+    readonly maximumBrowserInstances?: number;
+    readonly headless?: boolean;
+    readonly launchOptions?: JsonObject;
+    readonly contextOptions?: JsonObject;
+    readonly persistentContextOptions?: JsonObject;
+  };
+}
+
 export interface RuntimeScaffoldOutputOptions {
   readonly outputDir?: string;
   readonly writeTrace?: boolean;
@@ -51,6 +71,7 @@ export interface RuntimeScaffoldDescriptor {
   readonly execution?: RuntimeScaffoldExecutionTarget;
   readonly output?: RuntimeScaffoldOutputOptions;
   readonly mocks?: JsonObject;
+  readonly web?: RuntimeScaffoldWebOptions;
 }
 
 export interface RuntimeScaffoldFileSystem {

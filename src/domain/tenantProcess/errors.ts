@@ -6,7 +6,8 @@ export type TenantProcessValidationErrorCode =
   | 'MISSING_REFERENCE'
   | 'INVALID_REFERENCE'
   | 'INVALID_STATE_DEFINITION'
-  | 'INVALID_BINDING';
+  | 'INVALID_BINDING'
+  | 'INVALID_CONTRACT';
 
 export class TenantProcessValidationError extends Error {
   constructor(

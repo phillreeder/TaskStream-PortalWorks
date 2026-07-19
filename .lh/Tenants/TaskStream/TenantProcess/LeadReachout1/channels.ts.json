@@ -1,0 +1,18 @@
+{
+    "sourceFile": "Tenants/TaskStream/TenantProcess/LeadReachout1/channels.ts",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1784301037451,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1784301037451,
+            "name": "Commit-0",
+            "content": "import type { ChannelExecutable } from '@TaskStream/App/domain/tenantProcess/index.js';\n\nconst processWorkChannelExecutable = ((ctx) => {\n  const status = ctx.state.read('status');\n\n  if (status === 'pending') {\n    return ctx.selectSto(\n      'prepareWork',\n      'The Test1 work request is pending and must be prepared by its TenantProcess.',\n    );\n  }\n\n  return ctx.selectSto(\n    'inspectWork',\n    'The Test1 work request has left pending state and should be inspected.',\n  );\n}) satisfies ChannelExecutable;\n\nexport const WorkChannel = {\n  executable: processWorkChannelExecutable,\n};\n"
+        }
+    ]
+}

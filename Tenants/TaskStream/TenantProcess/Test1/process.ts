@@ -1,4 +1,4 @@
-import { TenantProcess } from '@TaskStream/App/domain/tenantProcess/index.js';
+import { DEFAULT_FLOW_PERMISSIONS, TenantProcess } from '@TaskStream/App/domain/tenantProcess/index.js';
 import { test1ProcessWorkChannel } from './channels.js';
 import {
   prepareWorkInputContract,
@@ -15,6 +15,7 @@ export const iebBetaTest1TenantProcess = TenantProcess.define({
   name: 'Test1',
   version: 1,
   description: 'Governed POC TenantProcess structure for exercising the real Task, Channel, STO, and Flow model.',
+  flowPermissions: DEFAULT_FLOW_PERMISSIONS,
 }, ({ tp }) => {
   const stateDefinitions = tp.stateDefinitions({
     processWork: test1ProcessWorkStateDefinition,

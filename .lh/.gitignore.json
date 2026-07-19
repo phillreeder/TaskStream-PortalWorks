@@ -1,0 +1,22 @@
+{
+    "sourceFile": ".gitignore",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 1,
+            "patches": [
+                {
+                    "date": 1784492225158,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                },
+                {
+                    "date": 1784492234617,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n@@ -21,5 +21,5 @@\n tmp/allure-report/**\n graphify-out/**\n services/web-dashboard/package-lock.json\n services/web-dashboard/node_modules\n-runtime-scaffold/flat/runtime-data/runs/935625ea-9523-4065-9e9e-51ddaebc252f/cycles/47a9f479-137a-46ca-a49f-8828b2456aa7.json\n+runtime-scaffold/flat/runtime-data/runs/*\n"
+                }
+            ],
+            "date": 1784492225158,
+            "name": "Commit-0",
+            "content": "node_modules\n# Keep environment variables out of version control\n.env\n\n/src/generated/prisma\nautomation\ndist\n/src/clients/TaskStream/recipes/*\nTaskStream.zip\n*.zip\ntest-results\nallure-report\ncoverage\nnode_modules\nsrc/tenants/**\nContainers/volumes/logs/**\nallure-results/**\nallure-report/**\ntmp/allure-results/**\ntmp/coverage/**\ntmp/allure-report/**\ngraphify-out/**\nservices/web-dashboard/package-lock.json\nservices/web-dashboard/node_modules\nruntime-scaffold/flat/runtime-data/runs/935625ea-9523-4065-9e9e-51ddaebc252f/cycles/47a9f479-137a-46ca-a49f-8828b2456aa7.json\n"
+        }
+    ]
+}

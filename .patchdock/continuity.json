@@ -1,0 +1,164 @@
+{
+  "createdAt": "2026-07-17T18:16:59.216Z",
+  "current": {
+    "canonicalHashMode": "bundle-included-content-hashes-v1",
+    "canonicalProjectHash": "sha256:978762eeb13c3ac268ebd7b3a73e280fb0e93ca59ca207423915c462a1bbdc90",
+    "lastBundleAt": "2026-07-19T20:14:01.485Z",
+    "lastBundleRunId": "1784492041485-7040e3f8-c6c1-4542-9a27-30ca9e529c7c-TaskStream-App",
+    "lastPatchAt": "2026-07-19T20:14:01.352Z",
+    "lastPatchHash": "sha256:925207b3723e55384c65e9268803c7a54144c07fdbe0b9783d3be901e42c2911",
+    "lastPatchId": "TASKSTREAM-SCAFFOLD-FAILURE-EVIDENCE-001",
+    "previousCanonicalProjectHash": "sha256:46fb2dfdb2d1d92fb3c42dda39171402c4bc7e8803a65be6e6433d120ea8607c"
+  },
+  "format": "patchdock/continuity",
+  "internal": {
+    "accountedBundleRunIds": [
+      "1784312219212-a9c39c7c-efba-4179-b668-8d4ea348c85b-TaskStream-App",
+      "1784302217781-TaskStream-App",
+      "1784302510290-TaskStream-App",
+      "1784302829217-TaskStream-App",
+      "1784385993910-fc24481a-789f-48d6-9b84-c5068e7586b2-TaskStream-App",
+      "1784389502091-8d3b1494-2589-4a3b-b27d-6a9b4b0cbecc-TaskStream-App",
+      "1784391119272-9ee9a01f-d51a-4162-88e3-7553195b4820-TaskStream-App",
+      "1784491151401-af26eaf6-1d2e-412d-9da0-40db3563d843-TaskStream-App",
+      "1784492041485-7040e3f8-c6c1-4542-9a27-30ca9e529c7c-TaskStream-App"
+    ],
+    "accountedPatchEventIds": [
+      "1784312206625-34e575ca:applied:2026-07-17T18:16:59.104Z",
+      "1784385990905-0882861e:applied:2026-07-18T14:46:33.824Z",
+      "1784389499852-051266c9:applied:2026-07-18T15:45:00.643Z",
+      "1784391118376-ded33d65:applied:2026-07-18T16:11:59.179Z",
+      "1784491149398-e9d9514a:applied:2026-07-19T19:59:11.245Z",
+      "1784492040391-c73817ab:applied:2026-07-19T20:14:01.352Z"
+    ]
+  },
+  "project": {
+    "id": "taskstream-app",
+    "name": "TaskStream-App"
+  },
+  "recentCanonicalHashes": [
+    {
+      "canonicalHashMode": "bundle-included-content-hashes-v1",
+      "generatedAt": "2026-07-19T20:14:01.485Z",
+      "hash": "sha256:978762eeb13c3ac268ebd7b3a73e280fb0e93ca59ca207423915c462a1bbdc90",
+      "patchId": "TASKSTREAM-SCAFFOLD-FAILURE-EVIDENCE-001",
+      "previousHash": "sha256:46fb2dfdb2d1d92fb3c42dda39171402c4bc7e8803a65be6e6433d120ea8607c",
+      "runId": "1784492041485-7040e3f8-c6c1-4542-9a27-30ca9e529c7c-TaskStream-App",
+      "source": "auto-after-apply"
+    },
+    {
+      "canonicalHashMode": "bundle-included-content-hashes-v1",
+      "generatedAt": "2026-07-19T19:59:11.401Z",
+      "hash": "sha256:46fb2dfdb2d1d92fb3c42dda39171402c4bc7e8803a65be6e6433d120ea8607c",
+      "patchId": "TASKSTREAM-LINKEDIN-USER-IN-MIDDLE-STEP-001",
+      "previousHash": "sha256:9fdec7cb712f4239e9a669fb2a1007eaeb0cf2e3b513d226983bb3ec3927f763",
+      "runId": "1784491151401-af26eaf6-1d2e-412d-9da0-40db3563d843-TaskStream-App",
+      "source": "auto-after-apply"
+    },
+    {
+      "canonicalHashMode": "bundle-included-content-hashes-v1",
+      "generatedAt": "2026-07-18T16:11:59.272Z",
+      "hash": "sha256:9fdec7cb712f4239e9a669fb2a1007eaeb0cf2e3b513d226983bb3ec3927f763",
+      "patchId": "SALES-MISSION-STATE-DESIGN-002",
+      "previousHash": "sha256:f1ea2dad91704b8c00289d24b9b953a74e1aab25cdaefafdbddf5c814c5c9d6e",
+      "runId": "1784391119272-9ee9a01f-d51a-4162-88e3-7553195b4820-TaskStream-App",
+      "source": "auto-after-apply"
+    },
+    {
+      "canonicalHashMode": "bundle-included-content-hashes-v1",
+      "generatedAt": "2026-07-18T15:45:02.091Z",
+      "hash": "sha256:f1ea2dad91704b8c00289d24b9b953a74e1aab25cdaefafdbddf5c814c5c9d6e",
+      "patchId": "TENANTPROCESS-STO-AUTHORITY-BANDS-001",
+      "previousHash": "sha256:10a8b7d6ff36f9cb7983d214c6768fa64ca24e21ac60f1985981c634c8e1f8de",
+      "runId": "1784389502091-8d3b1494-2589-4a3b-b27d-6a9b4b0cbecc-TaskStream-App",
+      "source": "auto-after-apply"
+    },
+    {
+      "canonicalHashMode": "bundle-included-content-hashes-v1",
+      "generatedAt": "2026-07-18T14:46:33.910Z",
+      "hash": "sha256:10a8b7d6ff36f9cb7983d214c6768fa64ca24e21ac60f1985981c634c8e1f8de",
+      "patchId": "TENANTPROCESS-FLOW-AUTHORITY-PERMISSIONS-001",
+      "previousHash": "sha256:61c4ef2673f814b822b9e9ac7099fed59de6812c80f9df95a8f5129636a1cd39",
+      "runId": "1784385993910-fc24481a-789f-48d6-9b84-c5068e7586b2-TaskStream-App",
+      "source": "auto-after-apply"
+    },
+    {
+      "canonicalHashMode": "bundle-included-content-hashes-v1",
+      "generatedAt": "2026-07-17T15:30:17.220Z",
+      "hash": "sha256:61c4ef2673f814b822b9e9ac7099fed59de6812c80f9df95a8f5129636a1cd39",
+      "patchId": null,
+      "previousHash": "sha256:7be11af90bde54a05102c15afa4c8ee09505d0d8379cbbe5cb86e586c3c3a75b",
+      "runId": "1784302217781-TaskStream-App",
+      "source": "manual"
+    },
+    {
+      "canonicalHashMode": "bundle-included-content-hashes-v1",
+      "generatedAt": "2026-07-17T18:16:59.212Z",
+      "hash": "sha256:7be11af90bde54a05102c15afa4c8ee09505d0d8379cbbe5cb86e586c3c3a75b",
+      "patchId": "SALES-PIPELINE-STATE-DEFINITIONS-001",
+      "previousHash": null,
+      "runId": "1784312219212-a9c39c7c-efba-4179-b668-8d4ea348c85b-TaskStream-App",
+      "source": "auto-after-apply"
+    }
+  ],
+  "recentPatches": [
+    {
+      "appliedAt": "2026-07-19T20:14:01.352Z",
+      "patchHash": "sha256:925207b3723e55384c65e9268803c7a54144c07fdbe0b9783d3be901e42c2911",
+      "patchId": "TASKSTREAM-SCAFFOLD-FAILURE-EVIDENCE-001",
+      "patchRecordId": "1784492040391-c73817ab",
+      "postApplyHash": "sha256:978762eeb13c3ac268ebd7b3a73e280fb0e93ca59ca207423915c462a1bbdc90",
+      "prePatchHash": "sha256:46fb2dfdb2d1d92fb3c42dda39171402c4bc7e8803a65be6e6433d120ea8607c"
+    },
+    {
+      "appliedAt": "2026-07-19T19:59:11.245Z",
+      "patchHash": "sha256:32070d95c04e4dd248b8270e91c43fc673bd7d9b1f66c71844cec7c80ee766e7",
+      "patchId": "TASKSTREAM-LINKEDIN-USER-IN-MIDDLE-STEP-001",
+      "patchRecordId": "1784491149398-e9d9514a",
+      "postApplyHash": "sha256:46fb2dfdb2d1d92fb3c42dda39171402c4bc7e8803a65be6e6433d120ea8607c",
+      "prePatchHash": "sha256:f46c7a0685506c611174acd2cc00f74fe6dd82b53f7ee67566c3d545431e93e8"
+    },
+    {
+      "appliedAt": "2026-07-18T16:11:59.179Z",
+      "patchHash": "sha256:3fc8a9e4c19222eed1d131ab89b25e7d36f7ef180a9ee2797a32f648f42c2bb0",
+      "patchId": "SALES-MISSION-STATE-DESIGN-002",
+      "patchRecordId": "1784391118376-ded33d65",
+      "postApplyHash": "sha256:9fdec7cb712f4239e9a669fb2a1007eaeb0cf2e3b513d226983bb3ec3927f763",
+      "prePatchHash": "sha256:f1ea2dad91704b8c00289d24b9b953a74e1aab25cdaefafdbddf5c814c5c9d6e"
+    },
+    {
+      "appliedAt": "2026-07-18T15:45:00.643Z",
+      "patchHash": "sha256:bf3ff69d4aa863d5df1542c18a8cae401ef97350ebd760561c3e158fd83d4958",
+      "patchId": "TENANTPROCESS-STO-AUTHORITY-BANDS-001",
+      "patchRecordId": "1784389499852-051266c9",
+      "postApplyHash": "sha256:f1ea2dad91704b8c00289d24b9b953a74e1aab25cdaefafdbddf5c814c5c9d6e",
+      "prePatchHash": "sha256:10a8b7d6ff36f9cb7983d214c6768fa64ca24e21ac60f1985981c634c8e1f8de"
+    },
+    {
+      "appliedAt": "2026-07-18T14:46:33.824Z",
+      "patchHash": "sha256:b8aa00533407308b1ca66c6541792d1e0f669f64989fa4cebd8aa6f6829cc99a",
+      "patchId": "TENANTPROCESS-FLOW-AUTHORITY-PERMISSIONS-001",
+      "patchRecordId": "1784385990905-0882861e",
+      "postApplyHash": "sha256:10a8b7d6ff36f9cb7983d214c6768fa64ca24e21ac60f1985981c634c8e1f8de",
+      "prePatchHash": "sha256:7be11af90bde54a05102c15afa4c8ee09505d0d8379cbbe5cb86e586c3c3a75b"
+    },
+    {
+      "appliedAt": "2026-07-17T18:16:59.104Z",
+      "patchHash": "sha256:1f6a124fa5c126fbf6ceeebe28cd046ede1e699bf7bbbd02e6aaa25e0ab42640",
+      "patchId": "SALES-PIPELINE-STATE-DEFINITIONS-001",
+      "patchRecordId": "1784312206625-34e575ca",
+      "postApplyHash": "sha256:7be11af90bde54a05102c15afa4c8ee09505d0d8379cbbe5cb86e586c3c3a75b",
+      "prePatchHash": "sha256:61c4ef2673f814b822b9e9ac7099fed59de6812c80f9df95a8f5129636a1cd39"
+    }
+  ],
+  "totals": {
+    "bundlesGenerated": 9,
+    "canonicalHashTransitions": 6,
+    "patchesApplied": 6,
+    "patchesFailed": 0,
+    "patchesUndone": 0
+  },
+  "totalsSince": "2026-07-17T18:16:59.216Z",
+  "updatedAt": "2026-07-19T20:14:02.195Z",
+  "version": 1
+}

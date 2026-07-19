@@ -70,8 +70,8 @@
   },
   "dependencies": {
     "@prisma/client": "^7.4.2",
-    "@TaskStream/SiteAutomation": "workspace:*",
-    "prisma": "^7.4.2"
+    "prisma": "^7.4.2",
+    "@taskstream/web-automation": "workspace:*"
   },
   "workspaces": [
     "packages/*"

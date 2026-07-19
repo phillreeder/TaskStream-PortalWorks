@@ -78,6 +78,7 @@ export type {
   RuntimeScaffoldSystemTraceTracer,
   RuntimeScaffoldTraceRecordCall,
   RuntimeScaffoldValidationSummary,
+  RuntimeScaffoldWebOptions,
   ScaffoldControlFile,
 } from './types.js';
 
@@ -101,3 +102,4 @@ export type {
 } from './ScaffoldFlowContext.js';
 
 export type { FlatRuntimeResolvedArtifact } from './FlatRuntimeArtifactResolver.js';
+export * from './FlatRuntimeFailureEvidence.js';

@@ -23,6 +23,9 @@ import {
   type FlatRuntimeStreamResult,
 } from './FlatRuntimeStreamRunner.js';
 import { createScaffoldFlowContextForExecution } from './ScaffoldFlowContext.js';
+import { createFlatRuntimeWebRuntime } from './FlatRuntimeWeb.js';
+import { loadScaffoldWebAccessor } from './flow-context/accessors/web.js';
+import type { RuntimeScaffoldWebOptions } from './types.js';
 
 export interface FlatRuntimePathwayInput {
   readonly tenantProcess: ComposedTenantProcessDefinition;
@@ -30,6 +33,8 @@ export interface FlatRuntimePathwayInput {
   readonly input?: Record<string, unknown>;
   readonly initialState?: Record<string, unknown>;
   readonly artifactBasePath?: string;
+  readonly configDirectory?: string;
+  readonly web?: RuntimeScaffoldWebOptions;
   readonly runtimeRoot: string;
   readonly runId?: string;
   readonly maxStepsPerStream?: number;
@@ -44,6 +49,7 @@ export interface FlatRuntimePathwayResult {
   readonly unitIds: readonly string[];
   readonly streamResults: readonly FlatRuntimeStreamResult[];
   readonly runDirectory: string;
+  readonly evidenceArchives: readonly string[];
   readonly reason?: string;
 }
 
@@ -81,12 +87,23 @@ export class FlatRuntimePathway {
       event,
       ...(data === undefined ? {} : { data }),
     });
+    const webRuntime = input.web
+      ? await createFlatRuntimeWebRuntime({
+        options: input.web,
+        configDirectory: input.configDirectory ?? input.artifactBasePath ?? process.cwd(),
+        store,
+        session,
+        trace,
+      })
+      : undefined;
     const accessors = createFlatRuntimeAccessors({
       store,
       session,
       trace,
       artifactBasePath: input.artifactBasePath ?? process.cwd(),
+      web: webRuntime?.accessor ?? loadScaffoldWebAccessor(),
     });
+    try {
     const initialState = cloneRecord(input.initialState ?? task.stateDefinition.defaults);
 
     let runRecord: FlatRuntimeRunRecord = {
@@ -120,6 +137,9 @@ export class FlatRuntimePathway {
         taskRef: input.taskRef,
         binding: { kind: 'task-activation', flowRef: task.activationFlow.flowId },
         container: createStateContainer(task, initialState),
+        authority: 'edge',
+        flowPermissions: input.tenantProcess.flowPermissions,
+        flowRef: task.activationFlow.flowId,
         accessors,
       }),
       session.input as Record<string, any>,
@@ -137,14 +157,14 @@ export class FlatRuntimePathway {
       const status = activationResult.status === 'retry' ? 'blocked' : 'failed';
       const reason = activationResult.reason ?? `Activation Flow returned ${activationResult.status}`;
       await persistFinalStatus(store, runRecord, cycleRecord, status, [], [], reason);
-      return result({ input, store, runId, cycleId, status, activationResult, reason });
+      return result({ input, store, runId, cycleId, status, activationResult, reason, evidenceArchives: webRuntime?.archives });
     }
 
     const units = [...session.units.values()];
     if (units.length === 0) {
       const reason = `Task activation Flow ${task.activationFlow.flowId} succeeded without creating a Unit`;
       await persistFinalStatus(store, runRecord, cycleRecord, 'failed', [], [], reason);
-      return result({ input, store, runId, cycleId, status: 'failed', activationResult, reason });
+      return result({ input, store, runId, cycleId, status: 'failed', activationResult, reason, evidenceArchives: webRuntime?.archives });
     }
 
     const streams = units.map((unit) => createStreamRecord(session, unit));
@@ -192,7 +212,11 @@ export class FlatRuntimePathway {
       unitIds,
       streamResults,
       reason,
+      evidenceArchives: webRuntime?.archives,
     });
+    } finally {
+      await webRuntime?.close();
+    }
   }
 }
 
@@ -314,6 +338,7 @@ function result(input: {
   readonly unitIds?: readonly string[];
   readonly streamResults?: readonly FlatRuntimeStreamResult[];
   readonly reason?: string;
+  readonly evidenceArchives?: readonly string[];
 }): FlatRuntimePathwayResult {
   return {
     runId: input.runId,
@@ -324,6 +349,7 @@ function result(input: {
     unitIds: input.unitIds ?? [],
     streamResults: input.streamResults ?? [],
     runDirectory: input.store.runDirectory(input.runId),
+    evidenceArchives: input.evidenceArchives ?? [],
     ...(input.reason ? { reason: input.reason } : {}),
   };
 }

@@ -1,5 +1,5 @@
 import { appendFile, mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, normalize, relative } from 'node:path';
 import type { FlowArtifactRecord, FlowUnitRecord } from '../../domain/tenantProcess/index.js';
 
 export type FlatRuntimeStatus = 'activating' | 'running' | 'succeeded' | 'blocked' | 'failed';
@@ -109,6 +109,25 @@ export class FlatRuntimeFileStore {
 
   async saveArtifact(record: FlatRuntimeStoredArtifact): Promise<void> {
     await this.writeJson(join(this.runDirectory(record.runId), 'artifacts', `${record.artifactId}.json`), record);
+  }
+
+  runFilePath(runId: string, relativePath: string): string {
+    const root = this.runDirectory(runId);
+    const target = normalize(join(root, relativePath));
+    const fromRoot = relative(root, target);
+    if (fromRoot.startsWith('..') || isAbsolute(fromRoot)) {
+      throw new Error(`Flat RuntimeScaffold run path escapes run directory: ${relativePath}`);
+    }
+    return target;
+  }
+
+  async saveRunFile(runId: string, relativePath: string, content: string | Buffer): Promise<string> {
+    const target = this.runFilePath(runId, relativePath);
+    await mkdir(dirname(target), { recursive: true });
+    const temporaryPath = `${target}.tmp-${process.pid}-${Date.now()}`;
+    await writeFile(temporaryPath, content);
+    await rename(temporaryPath, target);
+    return target;
   }
 
   async appendTrace(record: FlatRuntimeTraceRecord): Promise<void> {

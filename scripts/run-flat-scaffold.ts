@@ -94,7 +94,9 @@ function printResult(result: FlatRuntimeControlExecutionResult): void {
     configId: result.configId,
     runId: result.runId,
     status: result.status,
+    ...(result.reason ? { reason: result.reason } : {}),
     runDirectory: result.runDirectory,
+    evidenceArchives: result.evidenceArchives,
     warnings: result.warnings,
   }, null, 2));
 }
